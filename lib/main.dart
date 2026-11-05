@@ -170,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 const SizedBox(height: 24),
-                const Text(
+                Text(
                   'Balances are entered manually. Joint is an account label; your records stay within your login.',
                   textAlign: TextAlign.center,
                   style: TextStyle(

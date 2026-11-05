@@ -4,6 +4,7 @@ import '../models/ledger.dart';
 import '../models/recurring_rule.dart';
 import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
+import '../services/client_recurring_scheduler.dart';
 import 'recurring_editor.dart';
 
 class RecurringSection extends StatefulWidget {
@@ -11,9 +12,11 @@ class RecurringSection extends StatefulWidget {
     super.key,
     required this.store,
     required this.accounts,
+    required this.scheduler,
   });
   final LedgerStore store;
   final List<BankAccount> accounts;
+  final ClientRecurringScheduler scheduler;
   @override
   State<RecurringSection> createState() => _RecurringSectionState();
 }
@@ -48,11 +51,48 @@ class _RecurringSectionState extends State<RecurringSection> {
         child: Padding(
           padding: EdgeInsets.all(20),
           child: Text(
-            'Example: €96 from your chosen account on the 15th of each month, with an end date of 31 October 2028.\n\nSchedules use Malta time and run hourly at :15 after the server function is deployed. They record tracker entries only. No bank payment is made.',
+            'Example: €96 from your chosen account on the 15th of each month, with an end date of 31 October 2028.\n\nSchedules use Malta time and catch up when you open or resume this app. They also check every five minutes while the app is active. Nothing runs while the app is closed. They record tracker entries only. No bank payment is made.',
           ),
         ),
       ),
       const SizedBox(height: 16),
+      ListenableBuilder(
+        listenable: widget.scheduler,
+        builder: (context, _) => Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.scheduler.running
+                      ? 'Checking recurring payments…'
+                      : widget.scheduler.lastChecked == null
+                      ? 'Awaiting app check'
+                      : 'Last app check: ${dateLabel(widget.scheduler.lastChecked!)} · ${widget.scheduler.lastPosted} added',
+                ),
+                if (widget.scheduler.error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      widget.scheduler.error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                TextButton.icon(
+                  onPressed: widget.scheduler.running
+                      ? null
+                      : () => widget.scheduler.check(),
+                  icon: const Icon(Icons.sync),
+                  label: const Text('Check now'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
       StreamBuilder<List<RecurringRule>>(
         stream: _rules,
         builder: (context, snapshot) {
@@ -110,8 +150,8 @@ class _RecurringSectionState extends State<RecurringSection> {
                         !rule.enabled
                             ? 'Paused · missed dates are skipped on resume'
                             : rule.lastRunAt == null
-                            ? 'Awaiting first server run · deploy scheduling if needed'
-                            : 'Last server check: ${dateLabel(rule.lastRunAt!)}',
+                            ? 'Awaiting first app check · open online to catch up'
+                            : 'Last app processing: ${dateLabel(rule.lastRunAt!)}',
                       ),
                       if (rule.lastError != null)
                         Padding(

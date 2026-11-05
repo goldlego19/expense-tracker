@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/ledger.dart';
 import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
+import '../services/client_recurring_scheduler.dart';
 import '../widgets/editors.dart';
 import '../theme/app_theme.dart';
 import '../widgets/motion.dart';
@@ -17,7 +18,33 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  late final ClientRecurringScheduler _scheduler = ClientRecurringScheduler(
+    widget.user.uid,
+  );
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scheduler.start();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _scheduler.resume();
+    } else {
+      _scheduler.pause();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _scheduler.dispose();
+    super.dispose();
+  }
+
   late final LedgerStore _store = LedgerStore(widget.user.uid);
   late final Stream<List<BankAccount>> _accounts = _store.watchAccounts();
   late final Stream<List<LedgerEntry>> _entries = _store.watchEntries();
@@ -150,7 +177,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (_tab == 1) ..._transactions(accounts, entries),
                         if (_tab == 2) ..._accountSettings(accounts, entries),
                         if (_tab == 3)
-                          RecurringSection(store: _store, accounts: accounts),
+                          RecurringSection(
+                            store: _store,
+                            accounts: accounts,
+                            scheduler: _scheduler,
+                          ),
                       ],
                     ),
                   ),

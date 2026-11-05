@@ -92,39 +92,45 @@ Account balances = opening amount + income − expenses − outgoing transfers +
 
 This first version loads the user's ledger to calculate balances and sorts/filters locally. A larger ledger should use paginated history and server-maintained aggregates before broad public use. Dates use the recording device's timezone.
 
-## Recurring transactions
+## Recurring transactions (no Blaze plan required)
 
-Open **Recurring → Add rule**. Set the name, EUR amount, account, expense/income type, category, frequency, start/end dates, and the payment day. Frequencies: daily; weekly with weekday; monthly with day 1–31; yearly with month/day. The end date is inclusive. Days 29–31 clamp to the last day in shorter months. Schedules use `Europe/Malta`, including daylight saving time.
+Open **Recurring → Add rule**. Set the transaction name, EUR amount, account, expense/income type, category, frequency, inclusive start/end dates, and the payment day. Choose daily, weekly (weekday), monthly (day 1–31), or yearly (month/day). Days 29–31 use the last day of shorter months. All schedules use `Europe/Malta`, including daylight saving time.
 
-For example: amount `96.00`, expense, your chosen current account, Monthly, payment day `15`, your desired start date, end date `31 October 2028`. This includes the payment on 15 October 2028 if within the start range.
+Example: `96.00`, Expense, BOV Current, Monthly, day `15`, your desired start date, end `31 October 2028`. The final payment is 15 October 2028, if within the start range.
 
-Rules can be edited, paused, resumed or deleted. Editing or resuming applies from the Malta calendar date of the save; earlier dates are skipped. The scheduler never backfills dates before rule creation. Pausing/deleting preserves posted transactions. Archived or unavailable accounts skip due payments; skipped dates are not backfilled when restored. These rules record tracker transactions only; they do not instruct a bank or move real money.
+### Activate the app-based scheduler
 
-### Deploy the server scheduler
-
-Automatic posting while the app is closed requires Firebase **Blaze billing**, Cloud Functions and Cloud Scheduler. No deployment or billing changes are made by this repository. A saved rule alone does not activate the scheduler.
-
-Install Node.js 22, sign in with an account that can deploy to your Firebase project, and run from the project root:
+From the project root:
 
 ```powershell
-npm --prefix functions ci
-firebase deploy --only firestore --project expense-tracker-ed1c1
-firebase deploy --only functions:postRecurringTransactions --project expense-tracker-ed1c1
+flutter pub get
+firebase deploy --only firestore:rules --project expense-tracker-ed1c1
+flutter run -d chrome
 ```
 
-Wait for the Firestore collection-group index to finish building. The function runs hourly at minute 15, in `europe-west1`, using Malta calendar dates. A due payment normally appears at about 00:15 Malta time; after an outage it catches up on the next successful run. It processes up to 40 overdue occurrences per rule per run and continues in later runs. You can manually run the created Cloud Scheduler job for an immediate check. Do not expose the scheduler function as a public endpoint.
+No Cloud Function, Cloud Scheduler, Node.js installation or Blaze upgrade is needed. Keep the existing Firebase project. Do not run the previous functions deployment commands. If a server scheduler was successfully deployed earlier, remove that old Scheduler job/function before using this client-only mode; the failed Blaze deployment did not create one.
 
-The Recurring screen shows whether the backend has checked a rule and any account/configuration error. If rules save but payments never appear, verify that the function is deployed, the Scheduler job is enabled, the index exists and the function logs show successful runs. Ending dates stop posting but do not delete rule history.
+### When payments are recorded
 
-### Duplicate prevention and validation
+The signed-in app checks on opening, resuming, changing a recurring rule, and every five minutes while active. **Recurring → Check now** runs a manual check and shows errors/last-check status. Nothing runs while the app is closed. Due payments catch up the next time the app is online. Firestore transactions require a connection; an offline check cannot partially save a payment and retries on the next app check.
 
-Each due date has a deterministic transaction ID plus a server-only occurrence receipt. The receipt, transaction and progress cursor are written in one Firestore transaction. Retries/overlapping runs cannot post a second payment. Deleting a generated transaction intentionally leaves its receipt, so it will not be recreated. Editing an already-posted transaction does not change future rule settings.
+Each payment retains its scheduled Malta date in transaction history. A pass processes up to 100 overdue occurrences per rule; larger backlogs continue on the next check. Firebase's server timestamp provides the current date, protecting against an incorrectly set device clock. Timezone data is bundled with the app.
 
-Client rules restrict recurring configurations to the signed-in user. Processing cursors, run status and receipts are writable only by the server. The scheduler validates the configuration again and reads the latest account/rule inside its transaction, protecting concurrent edits, pauses and deletion. Rule deletion retains occurrence receipts as an audit trail; long-term cleanup can be added separately.
+Rules can be edited, paused, resumed or deleted. New rules, edits and resumes apply from their saved Malta calendar date. They do not backfill earlier dates. Previously recorded transactions stay when a rule is paused or deleted. Archived/unavailable accounts skip due payments when checked; skipped dates are not backfilled after restoring the account.
+
+These rules record tracker entries only. They do not move money at your bank. Standard Firestore read/write/storage quotas still apply on Firebase's free plan.
+
+### Duplicate prevention and security
+
+A payment, its immutable occurrence receipt and its progress cursor are saved in a single Firestore transaction. The rule and account are read again inside that transaction. Two devices can safely catch up simultaneously; retries cannot post the same occurrence twice. Receipts remain after deleting a generated entry, so it will not be recreated. Existing rules and receipts from the previous server implementation are retained.
+
+Security rules restrict configurations, processing status and clock documents to the signed-in owner. Receipt creation requires a matching transaction for that rule; receipts cannot be changed or deleted by clients. This is a personal ledger: an owner can manage their own entries and processing state. Another user cannot read or write them.
+
+Calendar tests cover inclusive ranges, daily/weekly/monthly/yearly frequencies, leap years, month-end clamping, Malta DST, catch-up chunking, and resumed-rule effective dates. Run:
 
 ```powershell
-npm --prefix functions run check
-npm --prefix functions test
+flutter test
+flutter test --platform chrome test/recurring_calendar_test.dart
 ```
 
-The backend tests cover monthly/weekly/daily/yearly dates, inclusive ranges, month ends, leap years, Malta DST, catch-up limits, retries, duplicate suppression, atomic failures, paused/deleted rules and archived accounts. Processor tests use an in-memory Firestore transaction double; production IAM, indexes and deployed rules still require validation after deployment.
+Calendar logic can be tested independently of Flutter. Firestore integration, concurrency and security rules should also be verified against the Firebase emulator or the deployed project before release.

@@ -298,7 +298,7 @@ class _RecurringEditorState extends State<RecurringEditor> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Records tracker transactions only. No money is moved at your bank. Server scheduling must be deployed to run automatically.',
+                'Records tracker transactions only. No money is moved at your bank. Due payments are recorded when you open or resume the app online. Payments catch up after the app has been closed.',
               ),
               if (_error != null)
                 Padding(

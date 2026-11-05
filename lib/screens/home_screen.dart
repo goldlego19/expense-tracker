@@ -5,6 +5,8 @@ import '../models/ledger.dart';
 import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
 import '../widgets/editors.dart';
+import '../theme/app_theme.dart';
+import '../widgets/motion.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.user});
@@ -53,51 +55,80 @@ class _HomeScreenState extends State<HomeScreen> {
       ) ??
       false;
 
+  void _openEntry(List<BankAccount> accounts, [String kind = 'expense']) {
+    final active = accounts.where((a) => !a.archived).toList();
+    if (active.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add an account first to record a transaction.'),
+        ),
+      );
+      editAccount(context, _store);
+      return;
+    }
+    if (kind == 'transfer' && active.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add a second account to transfer money.'),
+        ),
+      );
+      return;
+    }
+    editEntry(context, _store, active, null, kind);
+  }
+
   @override
   Widget build(BuildContext context) => StreamBuilder<List<BankAccount>>(
     stream: _accounts,
     builder: (context, accountsSnapshot) => StreamBuilder<List<LedgerEntry>>(
       stream: _entries,
       builder: (context, entriesSnapshot) {
-        final accounts = accountsSnapshot.data ?? [];
-        final entries = entriesSnapshot.data ?? [];
+        final accounts = accountsSnapshot.data ?? <BankAccount>[];
+        final entries = entriesSnapshot.data ?? <LedgerEntry>[];
         final ready =
             accountsSnapshot.hasData &&
             entriesSnapshot.hasData &&
             !accountsSnapshot.hasError &&
             !entriesSnapshot.hasError;
-        final active = accounts.where((a) => !a.archived).toList();
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Pocket Ledger'),
-            actions: [
-              IconButton(
-                tooltip: 'Sign out',
-                onPressed: () => _action(AuthService.signOut),
-                icon: const Icon(Icons.logout),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-          body: !ready
-              ? Center(
-                  child: accountsSnapshot.hasError || entriesSnapshot.hasError
-                      ? Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            friendlyError(
-                              accountsSnapshot.error ?? entriesSnapshot.error!,
-                            ),
+        final wide = MediaQuery.sizeOf(context).width >= 900;
+        final page = !ready
+            ? Center(
+                child: accountsSnapshot.hasError || entriesSnapshot.hasError
+                    ? Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          friendlyError(
+                            accountsSnapshot.error ?? entriesSnapshot.error!,
                           ),
-                        )
-                      : const CircularProgressIndicator(),
-                )
-              : Align(
+                        ),
+                      )
+                    : const CircularProgressIndicator(),
+              )
+            : AnimatedSwitcher(
+                duration: motionDuration(context),
+                switchInCurve: Curves.easeOutCubic,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween(
+                      begin: const Offset(0, .025),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: Align(
+                  key: ValueKey('$_tab-${_month.year}-${_month.month}'),
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1050),
+                    constraints: const BoxConstraints(maxWidth: 1100),
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
+                      padding: EdgeInsets.fromLTRB(
+                        wide ? 36 : 20,
+                        20,
+                        wide ? 36 : 20,
+                        120,
+                      ),
                       children: [
                         if (_tab == 0) ..._overview(accounts, entries),
                         if (_tab == 1) ..._transactions(accounts, entries),
@@ -106,45 +137,124 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+              );
+        return Scaffold(
+          appBar: AppBar(
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Pocket Ledger',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -.6,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              const AppearanceButton(),
+              IconButton(
+                tooltip: 'Sign out',
+                onPressed: () => _action(AuthService.signOut),
+                icon: const Icon(Icons.logout),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          body: Row(
+            children: [
+              if (wide)
+                NavigationRail(
+                  selectedIndex: _tab,
+                  onDestinationSelected: (i) => setState(() => _tab = i),
+                  labelType: NavigationRailLabelType.all,
+                  backgroundColor: Colors.transparent,
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.space_dashboard_outlined),
+                      selectedIcon: Icon(Icons.space_dashboard_rounded),
+                      label: Text('Overview'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.receipt_long_outlined),
+                      selectedIcon: Icon(Icons.receipt_long_rounded),
+                      label: Text('Transactions'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.account_balance_outlined),
+                      selectedIcon: Icon(Icons.account_balance_rounded),
+                      label: Text('Accounts'),
+                    ),
+                  ],
+                ),
+              Expanded(child: page),
+            ],
+          ),
           floatingActionButton: !ready
               ? null
               : FloatingActionButton.extended(
-                  onPressed: () {
-                    if (_tab == 2 || active.isEmpty) {
-                      editAccount(context, _store);
-                    } else {
-                      editEntry(context, _store, active);
-                    }
-                  },
-                  icon: const Icon(Icons.add),
-                  label: Text(
-                    _tab == 2 || active.isEmpty
-                        ? 'Add account'
-                        : 'Add transaction',
-                  ),
+                  onPressed: () => _tab == 2
+                      ? editAccount(context, _store)
+                      : _openEntry(accounts),
+                  icon: const Icon(Icons.add_rounded),
+                  label: Text(_tab == 2 ? 'Add account' : 'Add transaction'),
                 ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _tab,
-            onDestinationSelected: (i) => setState(() => _tab = i),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.space_dashboard_outlined),
-                label: 'Overview',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                label: 'Transactions',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.account_balance_outlined),
-                label: 'Accounts',
-              ),
-            ],
-          ),
+          bottomNavigationBar: wide
+              ? null
+              : NavigationBar(
+                  selectedIndex: _tab,
+                  onDestinationSelected: (i) => setState(() => _tab = i),
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.space_dashboard_outlined),
+                      selectedIcon: Icon(Icons.space_dashboard_rounded),
+                      label: 'Overview',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.receipt_long_outlined),
+                      selectedIcon: Icon(Icons.receipt_long_rounded),
+                      label: 'Transactions',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.account_balance_outlined),
+                      selectedIcon: Icon(Icons.account_balance_rounded),
+                      label: 'Accounts',
+                    ),
+                  ],
+                ),
         );
       },
     ),
   );
+
+  Widget _quickActions(List<BankAccount> accounts) => Wrap(
+    spacing: 12,
+    runSpacing: 12,
+    children: [
+      FilledButton.icon(
+        onPressed: () => _openEntry(accounts),
+        icon: const Icon(Icons.north_east_rounded),
+        label: const Text('Expense'),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _openEntry(accounts, 'income'),
+        icon: const Icon(Icons.south_west_rounded),
+        label: const Text('Income'),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _openEntry(accounts, 'transfer'),
+        icon: const Icon(Icons.swap_horiz_rounded),
+        label: const Text('Transfer'),
+      ),
+    ],
+  );
+
   List<Widget> _overview(
     List<BankAccount> accounts,
     List<LedgerEntry> entries,
@@ -175,24 +285,69 @@ class _HomeScreenState extends State<HomeScreen> {
         style: Theme.of(context).textTheme.headlineMedium,
       ),
       const SizedBox(height: 8),
-      const Text('Your accounts, in one place.'),
+      Text(
+        'Your money, with a little more clarity.',
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
       const SizedBox(height: 24),
-      Card(
-        color: Theme.of(context).colorScheme.primaryContainer,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+      Reveal(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(
+              colors: [Color(0xff164d47), Color(0xff142d46)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(
+              color: const Color(0xff7ce3c4).withValues(alpha: .25),
+            ),
+          ),
+          padding: const EdgeInsets.all(28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('NET WORTH · EUR'),
-              const SizedBox(height: 8),
-              Text(money(net), style: Theme.of(context).textTheme.displaySmall),
-              const SizedBox(height: 8),
-              const Text('All accounts, including loans and archived balances'),
+              const Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'TOTAL NET WORTH',
+                      style: TextStyle(
+                        color: Color(0xffb4d7d0),
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.5,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.insights_rounded, color: Color(0xff7ce3c4)),
+                ],
+              ),
+              const SizedBox(height: 18),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: AnimatedMoney(
+                  cents: net,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 46,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -1.5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'EUR · All accounts, including loans and archived balances',
+                style: TextStyle(color: Color(0xffb4d7d0)),
+              ),
             ],
           ),
         ),
       ),
+      const SizedBox(height: 20),
+      _quickActions(accounts),
       const SizedBox(height: 16),
       _monthPicker(),
       const SizedBox(height: 12),
@@ -200,9 +355,13 @@ class _HomeScreenState extends State<HomeScreen> {
         spacing: 12,
         runSpacing: 12,
         children: [
-          _metric('Income', income, Colors.teal),
-          _metric('Expenses', spending, Colors.deepOrange),
-          _metric('Cash flow', income - spending, Colors.blueGrey),
+          _metric('Income', income, incomeColor(context)),
+          _metric('Expenses', spending, expenseColor(context)),
+          _metric(
+            'Cash flow',
+            income - spending,
+            Theme.of(context).colorScheme.primary,
+          ),
         ],
       ),
       const SizedBox(height: 24),
@@ -237,9 +396,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: spending == 0 ? 0 : c.value / spending,
-                  minHeight: 6,
+                TweenAnimationBuilder<double>(
+                  tween: Tween(
+                    begin: 0,
+                    end: spending == 0 ? 0 : c.value / spending,
+                  ),
+                  duration: motionDuration(context, 500),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, value, _) => LinearProgressIndicator(
+                    value: value,
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ],
             ),
@@ -267,8 +435,8 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Text(label),
             const SizedBox(height: 8),
-            Text(
-              money(cents),
+            AnimatedMoney(
+              cents: cents,
               style: TextStyle(
                 fontSize: 24,
                 color: color,
@@ -320,6 +488,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return [
       Text('Transactions', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 16),
+      _quickActions(accounts),
+      const SizedBox(height: 16),
       _monthPicker(),
       const SizedBox(height: 16),
       DropdownButtonFormField<String>(
@@ -365,10 +535,10 @@ class _HomeScreenState extends State<HomeScreen> {
       (a) => (a.id == e.accountId || a.id == e.targetId) && a.archived,
     );
     final color = e.kind == 'income'
-        ? Colors.teal
+        ? incomeColor(context)
         : e.kind == 'expense'
-        ? Colors.deepOrange
-        : Colors.blueGrey;
+        ? expenseColor(context)
+        : Theme.of(context).colorScheme.primary;
     return Card(
       child: ListTile(
         leading: CircleAvatar(
@@ -443,6 +613,14 @@ class _HomeScreenState extends State<HomeScreen> {
     const SizedBox(height: 8),
     const Text(
       'Add accounts and manage your opening balances. All amounts use EUR.',
+    ),
+    const Card(
+      child: ListTile(
+        leading: Icon(Icons.palette_outlined),
+        title: Text('Appearance'),
+        subtitle: Text('Dark, light or your device theme'),
+        trailing: AppearanceButton(),
+      ),
     ),
     SwitchListTile(
       contentPadding: EdgeInsets.zero,

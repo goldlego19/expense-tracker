@@ -3,23 +3,27 @@ import 'package:flutter/material.dart';
 import '../models/ledger.dart';
 import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
+import 'motion.dart';
 
 Future<void> editAccount(
   BuildContext context,
   LedgerStore store, [
   BankAccount? account,
-]) => showDialog<void>(
-  context: context,
-  builder: (_) => AccountEditor(store: store, account: account),
-);
+]) => showLedgerEditor(context, AccountEditor(store: store, account: account));
 Future<void> editEntry(
   BuildContext context,
   LedgerStore store,
   List<BankAccount> accounts, [
   LedgerEntry? entry,
-]) => showDialog<void>(
-  context: context,
-  builder: (_) => EntryEditor(store: store, accounts: accounts, entry: entry),
+  String initialKind = 'expense',
+]) => showLedgerEditor(
+  context,
+  EntryEditor(
+    store: store,
+    accounts: accounts,
+    entry: entry,
+    initialKind: initialKind,
+  ),
 );
 
 class AccountEditor extends StatefulWidget {
@@ -190,10 +194,12 @@ class EntryEditor extends StatefulWidget {
     required this.store,
     required this.accounts,
     this.entry,
+    this.initialKind = 'expense',
   });
   final LedgerStore store;
   final List<BankAccount> accounts;
   final LedgerEntry? entry;
+  final String initialKind;
   @override
   State<EntryEditor> createState() => _EntryEditorState();
 }
@@ -217,7 +223,7 @@ class _EntryEditorState extends State<EntryEditor> {
       text: e == null ? '' : moneyInput(e.amountCents),
     );
     _note = TextEditingController(text: e?.note ?? '');
-    _kind = e?.kind ?? 'expense';
+    _kind = e?.kind ?? widget.initialKind;
     _accountId = e?.accountId ?? widget.accounts.first.id;
     _targetId = e?.targetId;
     _category = e?.category ?? categories.first;

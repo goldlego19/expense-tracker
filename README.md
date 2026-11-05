@@ -5,6 +5,10 @@ A Flutter expense tracker for Android and Web using Firebase Authentication (Goo
 ## Included
 
 - Google sign-in and persistent Firebase sessions.
+- Dark-first Material 3 design with mint accents, gradient balance cards and responsive desktop navigation.
+- Dark, light and device theme choices saved on the device, available from the appearance icon and Accounts.
+- Expense, Income and Transfer shortcuts on Overview and Transactions.
+- Animated screen transitions, balance changes, spending bars and editors; device reduced-motion preferences are respected.
 - Named Current, Savings, Joint and Loan accounts, with editable opening balances and archive/restore.
 - Income, expenses and transfers, with categories, dates, notes, editing and deletion.
 - Overview with net worth, monthly income/expenses/cash flow, category breakdown and recent activity.

@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'gremblinu@gmail.com'
+        && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
+    function validAccount(d) {
+      return d.keys().hasAll(['name', 'type', 'openingCents', 'currency', 'archived'])
+        && d.keys().hasOnly(['name', 'type', 'openingCents', 'currency', 'archived', 'sortOrder'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.type in ['Current', 'Savings', 'Joint', 'Loan']
+        && d.openingCents is int && d.openingCents >= -99999999999 && d.openingCents <= 99999999999
+        && (d.type != 'Loan' || d.openingCents <= 0)
+        && d.currency == 'EUR' && d.archived is bool
+        && (!('sortOrder' in d) || (d.sortOrder is int && d.sortOrder >= 0 && d.sortOrder <= 499));
+    }
+    function activeAccount(uid, id) {
+      return id is string && exists(/databases/$(database)/documents/users/$(uid)/accounts/$(id))
+        && get(/databases/$(database)/documents/users/$(uid)/accounts/$(id)).data.archived == false;
+    }
+    function validEntry(uid, d) {
+      return d.keys().hasAll(['kind', 'accountId', 'targetId', 'amountCents', 'category', 'note', 'date'])
+        && d.keys().hasOnly(['kind', 'accountId', 'targetId', 'amountCents', 'category', 'note', 'date'])
+        && d.kind in ['income', 'expense', 'transfer']
+        && d.amountCents is int && d.amountCents > 0 && d.amountCents <= 99999999999
+        && d.note is string && d.note.size() <= 200
+        && d.category in ['Food & groceries', 'Home', 'Transport', 'Shopping', 'Health', 'Entertainment', 'Bills', 'Salary', 'Other']
+        && d.date is timestamp && d.date >= timestamp.date(2000, 1, 1) && d.date <= request.time
+        && activeAccount(uid, d.accountId)
+        && ((d.kind != 'transfer' && d.targetId == null)
+          || (d.kind == 'transfer' && d.targetId != d.accountId && activeAccount(uid, d.targetId)));
+    }
+    function validRecurring(uid, d) {
+      return d.keys().hasAll(['name', 'accountId', 'kind', 'amountCents', 'category', 'frequency', 'dayOfMonth', 'weekday', 'month', 'startDate', 'endDate', 'timeZone', 'enabled', 'createdAt', 'effectiveFrom', 'processedThrough', 'lastRunAt', 'lastError'])
+        && d.keys().hasOnly(['name', 'accountId', 'kind', 'amountCents', 'category', 'frequency', 'dayOfMonth', 'weekday', 'month', 'startDate', 'endDate', 'timeZone', 'enabled', 'createdAt', 'effectiveFrom', 'processedThrough', 'lastRunAt', 'lastError'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.accountId is string && d.accountId.matches('[^/]+')
+        && d.kind in ['expense', 'income']
+        && d.amountCents is int && d.amountCents > 0 && d.amountCents <= 99999999999
+        && d.category in ['Food & groceries', 'Home', 'Transport', 'Shopping', 'Health', 'Entertainment', 'Bills', 'Salary', 'Other']
+        && d.frequency in ['daily', 'weekly', 'monthly', 'yearly']
+        && d.dayOfMonth is int && d.dayOfMonth >= 1 && d.dayOfMonth <= 31
+        && d.weekday is int && d.weekday >= 1 && d.weekday <= 7
+        && d.month is int && d.month >= 1 && d.month <= 12
+        && d.startDate is string && d.endDate is string
+        && d.startDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') && d.endDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && d.startDate >= '2000-01-01' && d.endDate <= '2100-12-31' && d.endDate >= d.startDate
+        && d.timeZone == 'Europe/Malta' && d.enabled is bool
+        && d.createdAt is timestamp && d.effectiveFrom is timestamp
+        && (!d.enabled || activeAccount(uid, d.accountId));
+    }
+    match /users/{uid}/recurringRules/{id} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && validRecurring(uid, request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.effectiveFrom == request.time
+        && request.resource.data.processedThrough == null && request.resource.data.lastRunAt == null && request.resource.data.lastError == null;
+      allow update: if owner(uid) && (
+        (validRecurring(uid, request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'accountId', 'kind', 'amountCents', 'category', 'frequency', 'dayOfMonth', 'weekday', 'month', 'startDate', 'endDate', 'enabled', 'effectiveFrom'])
+          && (request.resource.data.effectiveFrom == request.time || (request.resource.data.enabled == false && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabled']))))
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['processedThrough', 'lastRunAt', 'lastError'])
+          && request.resource.data.lastRunAt == request.time
+          && (request.resource.data.lastError == null || (request.resource.data.lastError is string && request.resource.data.lastError.size() <= 300))
+          && ((request.resource.data.processedThrough == null && resource.data.processedThrough == null)
+            || (request.resource.data.processedThrough is string
+              && request.resource.data.processedThrough.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+              && (resource.data.processedThrough == null || request.resource.data.processedThrough >= resource.data.processedThrough))))
+      );
+      match /occurrences/{date} {
+        function matchingEntry() {
+          let rule = get(/databases/$(database)/documents/users/$(uid)/recurringRules/$(id)).data;
+          let entry = getAfter(/databases/$(database)/documents/users/$(uid)/transactions/$(request.resource.data.transactionId)).data;
+          return rule.enabled == true && activeAccount(uid, rule.accountId)
+            && date >= rule.startDate && date <= rule.endDate
+            && entry.accountId == rule.accountId && entry.kind == rule.kind
+            && entry.amountCents == rule.amountCents && entry.note == rule.name
+            && entry.category == rule.category && entry.targetId == null && entry.date <= request.time;
+        }
+        allow read: if owner(uid);
+        allow create: if owner(uid)
+          && date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          && request.resource.data.keys().hasAll(['transactionId', 'date', 'postedAt'])
+          && request.resource.data.keys().hasOnly(['transactionId', 'date', 'postedAt'])
+          && request.resource.data.date == date && request.resource.data.postedAt == request.time
+          && request.resource.data.transactionId == 'recurring_' + id + '_' + date
+          && matchingEntry();
+        allow update, delete: if false;
+      }
+    }
+    match /users/{uid}/recurringClock/{id} {
+      allow read: if owner(uid);
+      allow create, update: if owner(uid) && id == 'current'
+        && request.resource.data.keys().hasOnly(['at'])
+        && request.resource.data.at == request.time;
+      allow delete: if false;
+    }
+    match /users/{uid}/accounts/{id} {
+      allow read: if owner(uid);
+      allow create, update: if owner(uid) && validAccount(request.resource.data);
+      // Archive accounts so transaction references remain intact.
+      allow delete: if false;
+    }
+    match /users/{uid}/transactions/{id} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && validEntry(uid, request.resource.data);
+      allow update: if owner(uid) && validEntry(uid, request.resource.data)
+        && activeAccount(uid, resource.data.accountId)
+        && (resource.data.kind != 'transfer' || activeAccount(uid, resource.data.targetId));
+    }
+  }
+}

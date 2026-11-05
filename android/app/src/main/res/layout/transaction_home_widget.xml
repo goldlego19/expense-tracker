@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <ImageView android:id="@+id/widget_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/widget_panel" android:scaleType="fitXY" android:contentDescription="@null" />
+    <LinearLayout android:id="@+id/widget_row" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="2dp" android:paddingEnd="2dp">
+        <TextView android:id="@+id/widget_previous" android:layout_width="28dp" android:layout_height="match_parent" android:gravity="center" android:text="‹" android:textSize="24sp" android:contentDescription="Previous account" />
+        <ImageView android:id="@+id/card_icon" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="6dp" android:src="@drawable/widget_icon_current" android:contentDescription="Account type" />
+        <TextView android:id="@+id/card_name" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center_vertical" android:text="Account" android:textSize="13sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/card_balance" android:layout_width="wrap_content" android:layout_height="match_parent" android:layout_marginStart="6dp" android:maxWidth="140dp" android:gravity="center_vertical" android:text="€0.00" android:textSize="17sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/card_transaction" android:layout_width="wrap_content" android:minWidth="48dp" android:layout_height="wrap_content" android:minHeight="48dp" android:layout_marginStart="6dp" android:background="@drawable/widget_button" android:gravity="center" android:text="+" android:textSize="26sp" android:contentDescription="Add transaction" />
+        <TextView android:id="@+id/widget_next" android:layout_width="28dp" android:layout_height="match_parent" android:gravity="center" android:text="›" android:textSize="24sp" android:contentDescription="Next account" />
+    </LinearLayout>
+    <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:padding="8dp" android:text="Open Pocket Ledger to set up" android:textSize="12sp" android:visibility="gone" />
+</FrameLayout>

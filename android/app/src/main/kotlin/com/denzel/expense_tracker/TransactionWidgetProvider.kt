@@ -16,17 +16,6 @@ class TransactionWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { updateWidget(context, manager, it) }
     }
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        if (intent.action == ACTION_NEXT || intent.action == ACTION_PREVIOUS) {
-            val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-            val manager = AppWidgetManager.getInstance(context)
-            if (id !in manager.getAppWidgetIds(ComponentName(context, TransactionWidgetProvider::class.java))) return
-            val views = RemoteViews(context.packageName, R.layout.transaction_home_widget)
-            if (intent.action == ACTION_NEXT) views.showNext(R.id.widget_stack) else views.showPrevious(R.id.widget_stack)
-            manager.partiallyUpdateAppWidget(id, views)
-        }
-    }
     override fun onDeleted(context: Context, ids: IntArray) {
         val editor = preferences(context).edit()
         ids.forEach { editor.remove("account_$it").remove("owner_$it") }
@@ -46,8 +35,6 @@ class TransactionWidgetProvider : AppWidgetProvider() {
     companion object {
         const val PREFS = "pocket_ledger_home_widgets"
         const val ACTION_QUICK_ENTRY = "com.denzel.expense_tracker.WIDGET_QUICK_ENTRY"
-        const val ACTION_NEXT = "com.denzel.expense_tracker.WIDGET_NEXT"
-        const val ACTION_PREVIOUS = "com.denzel.expense_tracker.WIDGET_PREVIOUS"
         fun preferences(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         fun accounts(context: Context): JSONArray = try { JSONArray(preferences(context).getString("accounts", "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
         fun readableAccent(context: Context): Int {
@@ -69,19 +56,15 @@ class TransactionWidgetProvider : AppWidgetProvider() {
             val authorized = prefs.getBoolean("authorized", false) && owner != null && prefs.getString("owner_$id", null) == owner
             val views = RemoteViews(context.packageName, R.layout.transaction_home_widget)
             val foreground = if (dark) Color.WHITE else Color.rgb(20, 28, 45)
-            views.setTextColor(R.id.widget_brand, readableAccent(context))
-            views.setTextColor(R.id.widget_swipe_hint, foreground)
             views.setTextColor(R.id.widget_empty, foreground)
-            views.setTextColor(R.id.widget_previous, foreground)
-            views.setTextColor(R.id.widget_next, foreground)
             views.setInt(R.id.widget_background, "setColorFilter", if (dark) Color.rgb(16, 24, 42) else Color.rgb(245, 247, 255))
             views.setTextViewText(R.id.widget_empty, if (!prefs.getBoolean("authorized", false)) "Open Pocket Ledger and sign in" else "Tap to set up your account carousel")
             val service = Intent(context, AccountWidgetService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
                 data = Uri.parse("pocketledger-widget://adapter/$id")
             }
-            views.setRemoteAdapter(R.id.widget_stack, service)
-            views.setEmptyView(R.id.widget_stack, R.id.widget_empty)
+            views.setRemoteAdapter(R.id.widget_accounts, service)
+            views.setEmptyView(R.id.widget_accounts, R.id.widget_empty)
             val entry = Intent(context, MainActivity::class.java).apply {
                 action = ACTION_QUICK_ENTRY
                 data = Uri.parse("pocketledger-widget://entries/$id")
@@ -90,10 +73,7 @@ class TransactionWidgetProvider : AppWidgetProvider() {
             // Collections require a mutable, explicit template so each card can
             // supply its account and action. Flutter still verifies auth/account.
             val template = PendingIntent.getActivity(context, id, entry, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
-            views.setPendingIntentTemplate(R.id.widget_stack, template)
-            fun navigate(actionName: String) = PendingIntent.getBroadcast(context, id, Intent(context, TransactionWidgetProvider::class.java).apply { action = actionName; putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id) }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.widget_previous, navigate(ACTION_PREVIOUS))
-            views.setOnClickPendingIntent(R.id.widget_next, navigate(ACTION_NEXT))
+            views.setPendingIntentTemplate(R.id.widget_accounts, template)
             val setup = if (prefs.getBoolean("authorized", false)) Intent(context, TransactionWidgetConfigureActivity::class.java).apply { putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id) } else Intent(context, MainActivity::class.java)
             setup.data = Uri.parse("pocketledger-widget://setup/$id")
             views.setOnClickPendingIntent(R.id.widget_empty, PendingIntent.getActivity(context, id, setup, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
@@ -101,10 +81,10 @@ class TransactionWidgetProvider : AppWidgetProvider() {
                 val all = accounts(context)
                 val selected = prefs.getString("account_$id", null)
                 val index = (0 until all.length()).firstOrNull { all.optJSONObject(it)?.optString("id") == selected } ?: 0
-                views.setDisplayedChild(R.id.widget_stack, index)
+                views.setScrollPosition(R.id.widget_accounts, index)
             }
             manager.updateAppWidget(id, views)
-            manager.notifyAppWidgetViewDataChanged(id, R.id.widget_stack)
+            manager.notifyAppWidgetViewDataChanged(id, R.id.widget_accounts)
         }
     }
 }

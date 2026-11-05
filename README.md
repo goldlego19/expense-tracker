@@ -8,7 +8,7 @@ A Flutter expense tracker for Android and Web using Firebase Authentication (Goo
 - Portfolio-inspired glass dashboard with a blue/purple backdrop, translucent panels, floating navigation and a responsive widget layout. Appearance includes six saved accent choices plus dark/light/device modes.
 - Dark, light and device theme choices saved on the device, available from the appearance icon and Accounts.
 - Expense, Income and Transfer shortcuts on Overview and Transactions.
-- Android home-screen account carousel with balance, type icon/name, swipe navigation and account-specific Expense/Income actions.
+- Compact Android home-screen account row with icon, name, balance, vertical swipe navigation and one transaction button.
 - Device-only appearance panel with colour swatches, a custom RGB hex accent and dark/light/device mode, also applied to Android home-screen widgets.
 - Animated screen transitions, balance changes, spending bars and editors; device reduced-motion preferences are respected.
 - Named Current, Savings, Joint and Loan accounts, with editable opening balances and archive/restore.
@@ -35,7 +35,7 @@ flutter run -d web-server --web-port 7357
 
 Then open `http://localhost:7357` in your normal browser. Keep using that address/profile. Fresh debug/private browser profiles do not share saved sign-in storage.
 
-The Android **home-screen account carousel** shows one active account at a time: its type icon, name and last-synced current balance. Swipe up/down or use the arrows to cycle through accounts in your saved order. Expense/Income buttons open the full editor for the displayed account. The in-app quick-entry card has been removed; account plus shortcuts remain.
+The Android **home-screen account widget** uses a compact single row: account icon, name, last-synced balance and a **+** transaction button. Swipe up/down through accounts in your saved order. Tap **+**, choose Income, Expense or Transfer, then complete the editor for that account. The in-app quick-entry card has been removed; account plus shortcuts remain.
 
 This restricts app and database access. Firebase may still briefly authenticate a different Google identity before the app rejects it; preventing creation of such Firebase Auth user records requires a different provider-side setup. No blocking Cloud Function or Blaze dependency is introduced.
 
@@ -164,15 +164,15 @@ This is a native Android launcher widget, not an in-app card. Install/run the An
 1. Connect an Android device (or start an Android emulator), run `flutter devices`, then `flutter run -d YOUR_ANDROID_DEVICE_ID`.
 2. Sign in with the permitted Google identity and let accounts/transactions load. For Google login on Android, register your debug signing SHA-1 in Firebase as described above.
 3. Long-press an empty area of the phone home screen → Widgets → **Pocket Ledger — Quick transaction**.
-4. Drag the widget onto the home screen and choose the first account. All active accounts are available by swiping **up/down** through the stack. Previous/next arrows provide the same navigation.
-5. Each account card shows its type icon, name, formatted current balance, position and sync time. Expense/Income opens the editor for that exact account; confirm the amount in the app before anything is saved.
+4. Drag the widget onto the home screen and choose the first account. All active accounts are available by swiping **up/down** through the single-row list.
+5. The default widget is **4 × 1 cells** (launcher sizing varies). One line contains the account icon, name, formatted balance and **+** button. Tap **+** to choose **Income**, **Expense** or **Transfer**; the displayed account is preselected (the source for transfers). Confirm the transaction in the app before anything is saved.
 
-The widget uses the account ordering saved in Firestore and excludes archived accounts. Account changes and recorded transactions update the widget as the authorized app syncs. While the app is closed, it shows the latest locally mirrored balance with its sync time, not a continuously refreshed server balance. Open the app to refresh. Sign-out clears the local widget mirror and shows a sign-in prompt. Reconfiguration from the launcher's widget settings selects the initial account again.
+The widget uses the account ordering saved in Firestore and excludes archived accounts. Account changes and recorded transactions update the widget as the authorized app syncs. While the app is closed, it shows the latest locally mirrored balance rather than a continuously refreshed server balance. Open the app to refresh. Sign-out clears the local widget mirror and shows a sign-in prompt. Reconfiguration from the launcher's widget settings selects the initial account again.
 
 Widget clicks work for cold app starts and existing app sessions. The request waits behind the normal Google access check and account loading; missing/archived account IDs cannot open a transaction for a different account. No authentication tokens are copied to the native widget preferences.
 
 **Appearance → Make it yours** offers the six website-style colour swatches, a custom `#RRGGBB` colour, and Dark/Light/Device modes. These preferences are local to the Android installation or Web browser/origin; they are not stored in Firestore or shared with other devices. Android app backup is disabled so these presets/widget choices do not migrate through Android backup. The launcher widget follows the device's chosen preset when the app syncs it.
 
-The native widget layout uses Android StackView/RemoteViewsService; the service is protected with BIND_REMOTEVIEWS. An explicit PendingIntent template carries only the selected account and expense/income action. Transactions are always confirmed in Flutter, under the same access rules as normal entries.
+The native widget layout uses Android ListView/RemoteViewsService with a fixed 56dp row and viewport, so accounts do not overlap; the service is protected with BIND_REMOTEVIEWS. An explicit PendingIntent template carries only the selected account and a request to choose the transaction type. Transactions are always confirmed in Flutter, under the same access rules as normal entries.
 
-Native code changes require a full Android rebuild/reinstall; hot reload alone is insufficient. The CI workflow now includes `flutter build apk --debug`. Local XML/resource checks and Dart helper tests do not replace testing swipe behaviour on the target launcher.
+Native code changes require a full Android rebuild/reinstall; hot reload alone is insufficient. After upgrading from the old large widget, remove it from the home screen and add it again to apply the 4 × 1 size. The CI workflow now includes `flutter build apk --debug`. Local XML/resource checks and Dart helper tests do not replace testing swipe behaviour on the target launcher.

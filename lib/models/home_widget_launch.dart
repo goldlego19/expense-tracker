@@ -15,7 +15,7 @@ class HomeWidgetLaunch {
         account is! String ||
         account.isEmpty ||
         account.contains('/') ||
-        (kind != 'expense' && kind != 'income'))
+        (kind != 'expense' && kind != 'income' && kind != 'choose'))
       return null;
     return HomeWidgetLaunch(
       requestId: request,

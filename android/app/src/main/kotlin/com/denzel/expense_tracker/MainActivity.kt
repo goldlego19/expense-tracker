@@ -56,7 +56,7 @@ class MainActivity : FlutterActivity() {
         if (intent?.action != TransactionWidgetProvider.ACTION_QUICK_ENTRY) return
         val account = intent.getStringExtra("accountId") ?: return
         val kind = intent.getStringExtra("kind") ?: return
-        if (account.isBlank() || account.contains('/') || kind !in listOf("expense", "income")) return
+        if (account.isBlank() || account.contains('/') || kind !in listOf("expense", "income", "choose")) return
         pendingLaunch = mapOf("requestId" to UUID.randomUUID().toString(), "accountId" to account, "kind" to kind)
     }
     private fun clearLaunch() {

@@ -129,14 +129,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       );
     } else {
-      await editEntry(
-        context,
-        _store,
-        active,
-        null,
-        launch.kind,
-        launch.accountId,
-      );
+      final kind = launch.kind == 'choose'
+          ? await chooseTransactionKind(context)
+          : launch.kind;
+      if (kind != null && mounted) {
+        await editEntry(context, _store, active, null, kind, launch.accountId);
+      }
     }
     _openingWidgetEditor = false;
     if (mounted) _queueWidgetLaunch();
@@ -1032,7 +1030,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (context) => AlertDialog(
         title: const Text('Add your home-screen widget'),
         content: const Text(
-          '1. Open this Android app and let accounts sync.\n2. Long-press an empty area on your phone home screen.\n3. Tap Widgets → Pocket Ledger → Quick transaction.\n4. Drag it onto the home screen and choose the first account.\n\nSwipe up/down to cycle through active accounts, or use the arrows. Each card shows its type icon, name and last-synced balance. Expense and Income open the editor for that card.\n\nColours and dark/light mode follow this device preset. Balances refresh as this app syncs; they do not fetch updates while the app is closed.',
+          '1. Open this Android app and let accounts sync.\n2. Long-press an empty area on your phone home screen.\n3. Tap Widgets → Pocket Ledger → Quick transaction.\n4. Drag it onto the home screen and choose the first account.\n\nSwipe up/down through active accounts. The compact row shows the account icon, name, last-synced balance and one + button. Tap + to choose Income, Expense or Transfer for that account.\n\nColours and dark/light mode follow this device preset. Balances refresh as this app syncs; they do not fetch updates while the app is closed.',
         ),
         actions: [
           TextButton(

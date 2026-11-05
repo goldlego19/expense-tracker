@@ -43,6 +43,79 @@ void main() {
       archived: false,
     ),
   ];
+  for (final option in ['Income', 'Expense', 'Transfer']) {
+    testWidgets('widget picker opens $option with its account selected', (
+      tester,
+    ) async {
+      final store = QuickRecordingStore();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                child: const Text('Widget +'),
+                onPressed: () async {
+                  final kind = await chooseTransactionKind(context);
+                  if (kind != null && context.mounted) {
+                    await editEntry(
+                      context,
+                      store,
+                      accounts,
+                      null,
+                      kind,
+                      'savings',
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Widget +'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option));
+      await tester.pumpAndSettle();
+      final fields = tester
+          .widgetList<DropdownButtonFormField<String>>(
+            find.byType(DropdownButtonFormField<String>),
+          )
+          .toList();
+      expect(fields[0].initialValue, option.toLowerCase());
+      expect(fields[1].initialValue, 'savings');
+      if (option == 'Transfer') {
+        expect(find.text('From account'), findsOneWidget);
+        expect(find.text('To account'), findsOneWidget);
+        expect(fields[2].initialValue, isNull);
+      }
+      expect(store.account, isNull);
+    });
+  }
+  testWidgets('dismissing the transaction picker does not create an entry', (
+    tester,
+  ) async {
+    String? chosen;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              child: const Text('Widget +'),
+              onPressed: () async {
+                chosen = await chooseTransactionKind(context);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Widget +'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(chosen, isNull);
+    expect(find.text('Add transaction'), findsNothing);
+  });
   testWidgets(
     'account-specific entry opens with the requested account selected',
     (tester) async {

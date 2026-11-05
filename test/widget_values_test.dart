@@ -13,6 +13,15 @@ void main() {
     expect(launch?.kind, 'income');
     expect(launch?.requestId, 'one');
   });
+  test('single widget button requests a picker for the displayed account', () {
+    final launch = HomeWidgetLaunch.parse({
+      'requestId': 'pick',
+      'accountId': 'loan',
+      'kind': 'choose',
+    });
+    expect(launch?.accountId, 'loan');
+    expect(launch?.kind, 'choose');
+  });
   test('widget launch rejects unrecognized actions and malformed accounts', () {
     for (final value in [
       null,

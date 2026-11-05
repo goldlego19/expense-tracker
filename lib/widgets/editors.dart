@@ -5,6 +5,33 @@ import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
 import 'motion.dart';
 
+Future<String?> chooseTransactionKind(BuildContext context) =>
+    showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Add transaction',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            for (final option in [
+              ('income', 'Income', Icons.south_west_rounded),
+              ('expense', 'Expense', Icons.north_east_rounded),
+              ('transfer', 'Transfer', Icons.swap_horiz_rounded),
+            ])
+              ListTile(
+                leading: Icon(option.$3),
+                title: Text(option.$2),
+                onTap: () => Navigator.pop(context, option.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+
 Future<void> editAccount(
   BuildContext context,
   LedgerStore store, [

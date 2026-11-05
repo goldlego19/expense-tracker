@@ -1,5 +1,5 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="230dp" android:minHeight="200dp" android:targetCellWidth="4" android:targetCellHeight="3"
+    android:minWidth="250dp" android:minHeight="56dp" android:minResizeWidth="230dp" android:minResizeHeight="56dp" android:targetCellWidth="4" android:targetCellHeight="1"
     android:initialLayout="@layout/transaction_home_widget" android:previewLayout="@layout/transaction_home_widget"
     android:configure="com.denzel.expense_tracker.TransactionWidgetConfigureActivity"
     android:resizeMode="horizontal|vertical" android:updatePeriodMillis="0"

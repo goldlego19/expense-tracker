@@ -38,7 +38,7 @@ class TransactionWidgetConfigureActivity : Activity() {
         }
         fun label(text: String, size: Float) = TextView(this).apply { this.text = text; textSize = size; setTextColor(textColor); setPadding(0, padding / 2, 0, padding / 2) }
         root.addView(label("Choose the first account", 24f))
-        root.addView(label("Swipe the widget to cycle through all active accounts. Choose which account to show first.", 15f))
+        root.addView(label("Use the arrows to switch between complete accounts. Resize the widget to grow the row. Choose which account to show first.", 15f))
         val accounts = TransactionWidgetProvider.accounts(this)
         val authorized = prefs.getBoolean("authorized", false)
         if (!authorized || accounts.length() == 0) {
@@ -59,7 +59,7 @@ class TransactionWidgetConfigureActivity : Activity() {
             list.setOnItemClickListener { _, _, position, _ ->
                 prefs.edit().putString("account_$widgetId", accounts.getJSONObject(position).getString("id"))
                     .putString("owner_$widgetId", prefs.getString("owner", null)).apply()
-                TransactionWidgetProvider.updateWidget(this, AppWidgetManager.getInstance(this), widgetId, resetSelection = true)
+                TransactionWidgetProvider.updateWidget(this, AppWidgetManager.getInstance(this), widgetId)
                 setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
                 finish()
             }

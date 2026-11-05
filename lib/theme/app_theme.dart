@@ -1,13 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum LedgerAccent {
+  blue(Color(0xff3b82f6)),
+  green(Color(0xff10b981)),
+  purple(Color(0xff8b5cf6)),
+  orange(Color(0xfff59e0b)),
+  pink(Color(0xfff43f5e)),
+  red(Color(0xffef4444));
+
+  const LedgerAccent(this.color);
+  final Color color;
+}
+
 class ThemeController extends ChangeNotifier {
   ThemeController({ThemeMode initialMode = ThemeMode.dark})
     : _mode = initialMode;
   ThemeMode _mode;
   ThemeMode get mode => _mode;
+  LedgerAccent _accent = LedgerAccent.blue;
+  LedgerAccent get accent => _accent;
   Future<void> load() async {
     try {
+      final savedAccent = await SharedPreferencesAsync().getString(
+        'ledgerAccent',
+      );
+      _accent = LedgerAccent.values.firstWhere(
+        (accent) => accent.name == savedAccent,
+        orElse: () => LedgerAccent.blue,
+      );
       final saved = await SharedPreferencesAsync().getString('appearance');
       _mode = ThemeMode.values.firstWhere(
         (mode) => mode.name == saved,
@@ -15,6 +36,17 @@ class ThemeController extends ChangeNotifier {
       );
     } catch (_) {
       /* The app can still start if device storage is unavailable. */
+    }
+  }
+
+  Future<bool> setAccent(LedgerAccent accent) async {
+    _accent = accent;
+    notifyListeners();
+    try {
+      await SharedPreferencesAsync().setString('ledgerAccent', accent.name);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -40,16 +72,18 @@ class ThemeScope extends InheritedNotifier<ThemeController> {
       context.dependOnInheritedWidgetOfExactType<ThemeScope>()?.notifier;
 }
 
-ThemeData ledgerTheme(Brightness brightness) {
+ThemeData ledgerTheme(
+  Brightness brightness, {
+  Color accent = const Color(0xff3b82f6),
+}) {
   final dark = brightness == Brightness.dark;
-  final scheme =
-      ColorScheme.fromSeed(
-        seedColor: const Color(0xff7ce3c4),
-        brightness: brightness,
-      ).copyWith(
-        primary: dark ? const Color(0xff7ce3c4) : const Color(0xff006b55),
-        onPrimary: dark ? const Color(0xff00382c) : Colors.white,
-        surface: dark ? const Color(0xff141b26) : Colors.white,
+  final scheme = ColorScheme.fromSeed(seedColor: accent, brightness: brightness)
+      .copyWith(
+        primary: dark
+            ? Color.lerp(accent, Colors.white, .32)!
+            : ColorScheme.fromSeed(seedColor: accent).primary,
+        onPrimary: dark ? const Color(0xff071121) : Colors.white,
+        surface: dark ? const Color(0xff121a2c) : Colors.white,
         onSurface: dark ? const Color(0xffedf2fa) : const Color(0xff172235),
       );
   final border = OutlineInputBorder(
@@ -59,9 +93,7 @@ ThemeData ledgerTheme(Brightness brightness) {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: dark
-        ? const Color(0xff0b1019)
-        : const Color(0xfff2f5f9),
+    scaffoldBackgroundColor: Colors.transparent,
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -70,7 +102,7 @@ ThemeData ledgerTheme(Brightness brightness) {
     cardTheme: CardThemeData(
       elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 6),
-      color: scheme.surface,
+      color: scheme.surface.withValues(alpha: dark ? .66 : .90),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .3)),
@@ -78,7 +110,9 @@ ThemeData ledgerTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: scheme.surface,
+      fillColor: dark
+          ? Colors.black.withValues(alpha: .18)
+          : Colors.white.withValues(alpha: .72),
       border: border,
       enabledBorder: border,
       contentPadding: const EdgeInsets.all(18),
@@ -90,7 +124,7 @@ ThemeData ledgerTheme(Brightness brightness) {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: scheme.surface,
+      backgroundColor: Colors.transparent,
       indicatorColor: scheme.primary.withValues(alpha: .16),
       elevation: 0,
     ),
@@ -101,10 +135,16 @@ ThemeData ledgerTheme(Brightness brightness) {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
     dialogTheme: DialogThemeData(
+      backgroundColor: dark ? const Color(0xff12192a) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
     ),
     snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
     textTheme: const TextTheme(
+      headlineLarge: TextStyle(
+        fontSize: 36,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -1.3,
+      ),
       headlineMedium: TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.w700,
@@ -125,9 +165,9 @@ class AppearanceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = ThemeScope.maybeOf(context);
     if (controller == null) return const SizedBox.shrink();
-    return PopupMenuButton<ThemeMode>(
+    return PopupMenuButton<String>(
       tooltip: 'Appearance',
-      initialValue: controller.mode,
+      initialValue: 'theme:${controller.mode.name}',
       icon: Icon(
         controller.mode == ThemeMode.system
             ? Icons.brightness_auto_outlined
@@ -135,9 +175,15 @@ class AppearanceButton extends StatelessWidget {
             ? Icons.dark_mode_outlined
             : Icons.light_mode_outlined,
       ),
-      onSelected: (mode) async {
-        final saved = await controller.setMode(mode);
-        if (!saved && context.mounted)
+      onSelected: (value) async {
+        final saved = value.startsWith('accent:')
+            ? await controller.setAccent(
+                LedgerAccent.values.byName(value.substring(7)),
+              )
+            : await controller.setMode(
+                ThemeMode.values.byName(value.substring(6)),
+              );
+        if (!saved && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -145,17 +191,37 @@ class AppearanceButton extends StatelessWidget {
               ),
             ),
           );
+        }
       },
       itemBuilder: (_) => [
         for (final mode in ThemeMode.values)
-          CheckedPopupMenuItem<ThemeMode>(
-            value: mode,
+          CheckedPopupMenuItem<String>(
+            value: 'theme:${mode.name}',
             checked: controller.mode == mode,
             child: Text(switch (mode) {
               ThemeMode.dark => 'Dark',
               ThemeMode.light => 'Light',
               ThemeMode.system => 'Use device theme',
             }),
+          ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          enabled: false,
+          child: Text('Accent colour'),
+        ),
+        for (final accent in LedgerAccent.values)
+          CheckedPopupMenuItem<String>(
+            value: 'accent:${accent.name}',
+            checked: controller.accent == accent,
+            child: Row(
+              children: [
+                Icon(Icons.circle, color: accent.color, size: 14),
+                const SizedBox(width: 10),
+                Text(
+                  '${accent.name[0].toUpperCase()}${accent.name.substring(1)}',
+                ),
+              ],
+            ),
           ),
       ],
     );

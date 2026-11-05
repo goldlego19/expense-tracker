@@ -7,6 +7,7 @@ import '../services/ledger_store.dart';
 import '../services/client_recurring_scheduler.dart';
 import '../widgets/editors.dart';
 import '../widgets/quick_transaction_card.dart';
+import '../widgets/glass_panel.dart';
 import '../widgets/account_order_editor.dart';
 import '../theme/app_theme.dart';
 import '../widgets/motion.dart';
@@ -221,32 +222,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           body: Row(
             children: [
               if (wide)
-                NavigationRail(
-                  selectedIndex: _tab,
-                  onDestinationSelected: (i) => setState(() => _tab = i),
-                  labelType: NavigationRailLabelType.all,
-                  backgroundColor: Colors.transparent,
-                  destinations: const [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.space_dashboard_outlined),
-                      selectedIcon: Icon(Icons.space_dashboard_rounded),
-                      label: Text('Overview'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 0, 16),
+                  child: GlassPanel(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    radius: 26,
+                    child: NavigationRail(
+                      selectedIndex: _tab,
+                      onDestinationSelected: (i) => setState(() => _tab = i),
+                      labelType: NavigationRailLabelType.all,
+                      backgroundColor: Colors.transparent,
+                      destinations: const [
+                        NavigationRailDestination(
+                          icon: Icon(Icons.space_dashboard_outlined),
+                          selectedIcon: Icon(Icons.space_dashboard_rounded),
+                          label: Text('Overview'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.receipt_long_outlined),
+                          selectedIcon: Icon(Icons.receipt_long_rounded),
+                          label: Text('Transactions'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.account_balance_outlined),
+                          selectedIcon: Icon(Icons.account_balance_rounded),
+                          label: Text('Accounts'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.autorenew_rounded),
+                          label: Text('Recurring'),
+                        ),
+                      ],
                     ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long_rounded),
-                      label: Text('Transactions'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.account_balance_outlined),
-                      selectedIcon: Icon(Icons.account_balance_rounded),
-                      label: Text('Accounts'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.autorenew_rounded),
-                      label: Text('Recurring'),
-                    ),
-                  ],
+                  ),
                 ),
               Expanded(child: page),
             ],
@@ -270,30 +278,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
           bottomNavigationBar: wide
               ? null
-              : NavigationBar(
-                  selectedIndex: _tab,
-                  onDestinationSelected: (i) => setState(() => _tab = i),
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.space_dashboard_outlined),
-                      selectedIcon: Icon(Icons.space_dashboard_rounded),
-                      label: 'Overview',
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                  child: GlassPanel(
+                    padding: EdgeInsets.zero,
+                    radius: 24,
+                    child: NavigationBar(
+                      height: 72,
+                      selectedIndex: _tab,
+                      onDestinationSelected: (i) => setState(() => _tab = i),
+                      destinations: const [
+                        NavigationDestination(
+                          icon: Icon(Icons.space_dashboard_outlined),
+                          selectedIcon: Icon(Icons.space_dashboard_rounded),
+                          label: 'Overview',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.receipt_long_outlined),
+                          selectedIcon: Icon(Icons.receipt_long_rounded),
+                          label: 'Transactions',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.account_balance_outlined),
+                          selectedIcon: Icon(Icons.account_balance_rounded),
+                          label: 'Accounts',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.autorenew_rounded),
+                          label: 'Recurring',
+                        ),
+                      ],
                     ),
-                    NavigationDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long_rounded),
-                      label: 'Transactions',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.account_balance_outlined),
-                      selectedIcon: Icon(Icons.account_balance_rounded),
-                      label: 'Accounts',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.autorenew_rounded),
-                      label: 'Recurring',
-                    ),
-                  ],
+                  ),
                 ),
         );
       },
@@ -328,62 +344,210 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   ) {
     final net = totalBalance(accounts, entries);
     final withoutLoans = totalBalance(accounts, entries, includeLoans: false);
+    final active = accounts.where((account) => !account.archived).toList();
     final monthly = entries.where(
-      (e) => e.date.year == _month.year && e.date.month == _month.month,
+      (entry) =>
+          entry.date.year == _month.year && entry.date.month == _month.month,
     );
     final income = monthly
-        .where((e) => e.kind == 'income')
-        .fold(0, (sum, e) => sum + e.amountCents);
+        .where((entry) => entry.kind == 'income')
+        .fold(0, (sum, entry) => sum + entry.amountCents);
     final spending = monthly
-        .where((e) => e.kind == 'expense')
-        .fold(0, (sum, e) => sum + e.amountCents);
+        .where((entry) => entry.kind == 'expense')
+        .fold(0, (sum, entry) => sum + entry.amountCents);
     final byCategory = <String, int>{};
-    for (final e in monthly.where((e) => e.kind == 'expense')) {
+    for (final entry in monthly.where((entry) => entry.kind == 'expense')) {
       byCategory.update(
-        e.category,
-        (v) => v + e.amountCents,
-        ifAbsent: () => e.amountCents,
+        entry.category,
+        (value) => value + entry.amountCents,
+        ifAbsent: () => entry.amountCents,
       );
     }
     final breakdown = byCategory.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+    final accent = Theme.of(context).colorScheme.primary;
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good morning'
+        : hour < 18
+        ? 'Good afternoon'
+        : 'Good evening';
+    final accountsPanel = GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PanelHeading(
+            title: 'Your accounts',
+            icon: Icons.account_balance_wallet_outlined,
+            trailing: Text(
+              '${active.length} accounts',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          if (active.isEmpty)
+            const _Empty(
+              icon: Icons.account_balance_outlined,
+              title: 'Your money starts here',
+              message: 'Add your first account to start tracking.',
+            ),
+          ...active.map(
+            (account) => _accountCard(account, entries, accounts: accounts),
+          ),
+        ],
+      ),
+    );
+    final spendingPanel = GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const PanelHeading(
+            title: 'Spending breakdown',
+            icon: Icons.donut_large_outlined,
+          ),
+          if (breakdown.isEmpty)
+            Text(
+              'No expenses for this month yet.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ...breakdown.map(
+            (category) => Padding(
+              padding: const EdgeInsets.only(bottom: 18),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: Text(category.key)),
+                      Text(
+                        money(category.value),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(
+                      begin: 0,
+                      end: spending == 0 ? 0 : category.value / spending,
+                    ),
+                    duration: motionDuration(context, 500),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, value, _) => LinearProgressIndicator(
+                      value: value,
+                      minHeight: 5,
+                      borderRadius: BorderRadius.circular(8),
+                      backgroundColor: accent.withValues(alpha: .08),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final recentPanel = GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PanelHeading(
+            title: 'Recent activity',
+            icon: Icons.history_rounded,
+            trailing: TextButton(
+              onPressed: () => setState(() => _tab = 1),
+              child: const Text('View all'),
+            ),
+          ),
+          if (entries.isEmpty)
+            Text(
+              'Your latest transactions will appear here.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ...entries.take(5).map((entry) => _entryTile(entry, accounts)),
+        ],
+      ),
+    );
+    final quickPanel = QuickTransactionCard(
+      key: ValueKey(widget.user.uid),
+      store: _store,
+      accounts: accounts,
+      userId: widget.user.uid,
+    );
     return [
+      Container(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: .10),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: accent.withValues(alpha: .16)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline, size: 12, color: accent),
+              const SizedBox(width: 7),
+              Text(
+                'YOUR PERSONAL DASHBOARD',
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
       Text(
-        'Hello, ${widget.user.displayName?.split(' ').first ?? 'there'}',
-        style: Theme.of(context).textTheme.headlineMedium,
+        '$greeting, ${widget.user.displayName?.split(' ').first ?? 'there'}.',
+        style: Theme.of(context).textTheme.headlineLarge,
       ),
       const SizedBox(height: 8),
       Text(
-        'Your money, with a little more clarity.',
-        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        'A little clarity for everything you earn, spend and save.',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontSize: 15,
+        ),
       ),
-      const SizedBox(height: 24),
+      const SizedBox(height: 28),
       LayoutBuilder(
         builder: (context, constraints) {
-          final withLoansCard = _balanceCard(
+          final withLoans = _balanceCard(
             title: 'NET WORTH INCLUDING LOANS',
             cents: net,
-            subtitle: 'EUR · All account balances, including loan debt',
+            subtitle: 'All accounts, including loan debt',
+            icon: Icons.insights_rounded,
           );
           final withoutLoansCard = _balanceCard(
             title: 'BALANCE EXCLUDING LOANS',
             cents: withoutLoans,
-            subtitle: 'EUR · Current, savings and joint accounts',
+            subtitle: 'Current, savings and joint accounts',
+            icon: Icons.savings_outlined,
           );
-          if (constraints.maxWidth < 680) {
+          if (constraints.maxWidth < 680)
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                withLoansCard,
+                withLoans,
                 const SizedBox(height: 16),
                 withoutLoansCard,
               ],
             );
-          }
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: withLoansCard),
+              Expanded(child: withLoans),
               const SizedBox(width: 16),
               Expanded(child: withoutLoansCard),
             ],
@@ -392,87 +556,64 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       const SizedBox(height: 20),
       _quickActions(accounts),
-      const SizedBox(height: 16),
-      QuickTransactionCard(
-        key: ValueKey(widget.user.uid),
-        store: _store,
-        accounts: accounts,
-        userId: widget.user.uid,
-      ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 20),
       _monthPicker(),
       const SizedBox(height: 12),
-      Wrap(
-        spacing: 12,
-        runSpacing: 12,
+      Row(
         children: [
-          _metric('Income', income, incomeColor(context)),
-          _metric('Expenses', spending, expenseColor(context)),
-          _metric(
-            'Cash flow',
-            income - spending,
-            Theme.of(context).colorScheme.primary,
-          ),
+          Expanded(child: _metric('Income', income, incomeColor(context))),
+          const SizedBox(width: 10),
+          Expanded(child: _metric('Expenses', spending, expenseColor(context))),
+          const SizedBox(width: 10),
+          Expanded(child: _metric('Cash flow', income - spending, accent)),
         ],
       ),
       const SizedBox(height: 24),
-      Text('Your accounts', style: Theme.of(context).textTheme.titleLarge),
-      const SizedBox(height: 8),
-      if (accounts.where((a) => !a.archived).isEmpty)
-        const _Empty(
-          icon: Icons.account_balance_outlined,
-          title: 'Start with your first account',
-          message: 'Add your bank balance, then record income, expenses and transfers.',
-        ),
-      ...accounts
-          .where((a) => !a.archived)
-          .map((a) => _accountCard(a, entries, accounts: accounts)),
-      const SizedBox(height: 24),
-      Text(
-        'Spending by category',
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-      const SizedBox(height: 8),
-      if (breakdown.isEmpty) const Text('No expenses recorded for this month.'),
-      ...breakdown.map(
-        (c) => Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+      LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 820)
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
+                quickPanel,
+                const SizedBox(height: 20),
+                accountsPanel,
+                const SizedBox(height: 20),
+                spendingPanel,
+                const SizedBox(height: 20),
+                recentPanel,
+              ],
+            );
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: Text(c.key)),
-                    Text(money(c.value)),
+                    quickPanel,
+                    const SizedBox(height: 20),
+                    spendingPanel,
                   ],
                 ),
-                const SizedBox(height: 8),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(
-                    begin: 0,
-                    end: spending == 0 ? 0 : c.value / spending,
-                  ),
-                  duration: motionDuration(context, 500),
-                  curve: Curves.easeOutCubic,
-                  builder: (_, value, _) => LinearProgressIndicator(
-                    value: value,
-                    minHeight: 6,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                flex: 7,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    accountsPanel,
+                    const SizedBox(height: 20),
+                    recentPanel,
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ),
+              ),
+            ],
+          );
+        },
       ),
-      const SizedBox(height: 24),
-      Text(
-        'Recent transactions',
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-      if (entries.isEmpty)
-        const Text('Your recorded transactions will appear here.'),
-      ...entries.take(5).map((e) => _entryTile(e, accounts)),
     ];
   }
 
@@ -480,89 +621,106 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required String title,
     required int cents,
     required String subtitle,
-  }) => Reveal(
-    child: Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xff164d47), Color(0xff142d46)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(
-          color: const Color(0xff7ce3c4).withValues(alpha: .25),
-        ),
-      ),
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: Color(0xffb4d7d0),
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.insights_rounded, color: Color(0xff7ce3c4)),
-            ],
-          ),
-          const SizedBox(height: 18),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: AnimatedMoney(
-              cents: cents,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 42,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -1.5,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(subtitle, style: const TextStyle(color: Color(0xffb4d7d0))),
-          const SizedBox(height: 8),
-          const Text(
-            'Archived balances included',
-            style: TextStyle(color: Color(0xffb4d7d0), fontSize: 11),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _metric(String label, int cents, Color color) => SizedBox(
-    width: 225,
-    child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+    required IconData icon,
+  }) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Reveal(
+      child: GlassPanel(
+        accent: accent,
+        padding: const EdgeInsets.all(26),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label),
-            const SizedBox(height: 8),
-            AnimatedMoney(
-              cents: cents,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 10,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(icon, color: accent, size: 21),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: AnimatedMoney(
+                cents: cents,
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  fontSize: 40,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'EUR · $subtitle',
               style: TextStyle(
-                fontSize: 24,
-                color: color,
-                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Archived balances included',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant
+                    .withValues(alpha: .8),
+                fontSize: 10,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _metric(String label, int cents, Color color) => GlassPanel(
+    radius: 18,
+    padding: const EdgeInsets.all(15),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 10),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: AnimatedMoney(
+            cents: cents,
+            style: TextStyle(
+              fontSize: 23,
+              color: color,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -.5,
+            ),
+          ),
+        ),
+      ],
     ),
   );
+
   Widget _monthPicker() => Row(
     children: [
       IconButton(

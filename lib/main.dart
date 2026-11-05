@@ -8,6 +8,7 @@ import 'services/access_policy.dart';
 import 'screens/authorized_session.dart';
 import 'theme/app_theme.dart';
 import 'widgets/motion.dart';
+import 'widgets/glass_panel.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,9 +51,14 @@ class _ExpenseAppState extends State<ExpenseApp> {
       builder: (context, _) => MaterialApp(
         title: 'Pocket Ledger',
         debugShowCheckedModeBanner: false,
-        theme: ledgerTheme(Brightness.light),
-        darkTheme: ledgerTheme(Brightness.dark),
+        theme: ledgerTheme(Brightness.light, accent: _appearance.accent.color),
+        darkTheme: ledgerTheme(
+          Brightness.dark,
+          accent: _appearance.accent.color,
+        ),
         themeMode: _appearance.mode,
+        builder: (context, child) =>
+            DashboardBackdrop(child: child ?? const SizedBox.shrink()),
         themeAnimationDuration: motionDuration(context),
         home: widget.startupError != null
             ? const Scaffold(
@@ -125,71 +131,74 @@ class _LoginScreenState extends State<LoginScreen> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 430),
           child: Reveal(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 72,
-                  color: Color(0xff7ce3c4),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Pocket Ledger',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'A clearer view of your money.',
-                  style: TextStyle(fontSize: 18),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Keep your current, savings, joint and loan accounts together. Record spending and see where you stand.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Private access · $allowedGoogleEmail',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'You stay signed in on this device until you sign out.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: _busy ? null : _login,
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.login),
-                  label: Text(_busy ? 'Signing in…' : 'Continue with Google'),
-                ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: Text(
-                      _error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+            child: GlassPanel(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Pocket Ledger',
+                    style: Theme.of(context).textTheme.headlineLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'A clearer view of your money.',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Keep your current, savings, joint and loan accounts together. Record spending and see where you stand.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Private access · $allowedGoogleEmail',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'You stay signed in on this device until you sign out.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _login,
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.login),
+                    label: Text(_busy ? 'Signing in…' : 'Continue with Google'),
+                  ),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Text(
+                        _error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
+                    ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Balances are entered manually. Joint is an account label; your records stay within your login.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                const SizedBox(height: 24),
-                Text(
-                  'Balances are entered manually. Joint is an account label; your records stay within your login.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

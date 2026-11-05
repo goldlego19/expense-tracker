@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ledger.dart';
 import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
+import 'glass_panel.dart';
 
 class QuickTransactionCard extends StatefulWidget {
   const QuickTransactionCard({
@@ -100,108 +101,105 @@ class _QuickTransactionCardState extends State<QuickTransactionCard> {
     final selected = active.any((account) => account.id == _accountId)
         ? _accountId
         : active.firstOrNull?.id;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _form,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Quick transaction',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Add an expense or income to a specific account. Saved under Other; use Add transaction for categories, transfers and dates.',
+    return GlassPanel(
+      child: Form(
+        key: _form,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const PanelHeading(
+              title: 'Quick transaction',
+              icon: Icons.add_card_outlined,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Add an expense or income to a specific account. Saved under Other; use Add transaction for categories, transfers and dates.',
+            ),
+            const SizedBox(height: 16),
+            if (active.isEmpty)
+              const Text('Add an account to start recording transactions.')
+            else ...[
+              DropdownButtonFormField<String>(
+                key: ValueKey(selected),
+                initialValue: selected,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction account',
+                ),
+                items: active
+                    .map(
+                      (account) => DropdownMenuItem(
+                        value: account.id,
+                        child: Text(
+                          account.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _busy
+                    ? null
+                    : (id) {
+                        if (id == null) return;
+                        _selectionChanged = true;
+                        setState(() => _accountId = id);
+                        unawaited(_rememberAccount(id));
+                      },
               ),
               const SizedBox(height: 16),
-              if (active.isEmpty)
-                const Text('Add an account to start recording transactions.')
-              else ...[
-                DropdownButtonFormField<String>(
-                  key: ValueKey(selected),
-                  initialValue: selected,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Transaction account',
-                  ),
-                  items: active
-                      .map(
-                        (account) => DropdownMenuItem(
-                          value: account.id,
-                          child: Text(
-                            account.name,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: _busy
-                      ? null
-                      : (id) {
-                          if (id == null) return;
-                          _selectionChanged = true;
-                          setState(() => _accountId = id);
-                          unawaited(_rememberAccount(id));
-                        },
+              DropdownButtonFormField<String>(
+                initialValue: _kind,
+                decoration: const InputDecoration(
+                  labelText: 'Quick transaction type',
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _kind,
-                  decoration: const InputDecoration(
-                    labelText: 'Quick transaction type',
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'expense', child: Text('Expense')),
-                    DropdownMenuItem(value: 'income', child: Text('Income')),
-                  ],
-                  onChanged: _busy
-                      ? null
-                      : (kind) => setState(() => _kind = kind!),
+                items: const [
+                  DropdownMenuItem(value: 'expense', child: Text('Expense')),
+                  DropdownMenuItem(value: 'income', child: Text('Income')),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (kind) => setState(() => _kind = kind!),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _amount,
+                enabled: !_busy,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _amount,
-                  enabled: !_busy,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Quick amount (€)',
-                  ),
-                  validator: (value) => (parseMoney(value ?? '') ?? 0) <= 0
-                      ? 'Enter a positive amount with up to 2 decimals'
-                      : null,
+                decoration: const InputDecoration(
+                  labelText: 'Quick amount (€)',
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _note,
-                  enabled: !_busy,
-                  maxLength: 200,
-                  decoration: const InputDecoration(
-                    labelText: 'Transaction name or note (optional)',
-                  ),
+                validator: (value) => (parseMoney(value ?? '') ?? 0) <= 0
+                    ? 'Enter a positive amount with up to 2 decimals'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _note,
+                enabled: !_busy,
+                maxLength: 200,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction name or note (optional)',
                 ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                FilledButton.icon(
-                  onPressed: _busy ? null : () => _save(selected!),
-                  icon: const Icon(Icons.add),
-                  label: Text(_busy ? 'Saving…' : 'Save transaction'),
                 ),
-              ],
+              FilledButton.icon(
+                onPressed: _busy ? null : () => _save(selected!),
+                icon: const Icon(Icons.add),
+                label: Text(_busy ? 'Saving…' : 'Save transaction'),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );

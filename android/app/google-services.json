@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "320139983902",
+    "project_id": "expense-tracker-ed1c1",
+    "storage_bucket": "expense-tracker-ed1c1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:320139983902:android:33601aa5a128e1904c020f",
+        "android_client_info": {
+          "package_name": "com.denzel.expense_tracker"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "320139983902-g5gl68gd2ghlu5422mdh9v0tri6d2m58.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCFXkyqSzTAXm-Yt-8FKy4qLQJLVCBCkDc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "320139983902-g5gl68gd2ghlu5422mdh9v0tri6d2m58.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

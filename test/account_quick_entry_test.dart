@@ -1,7 +1,6 @@
 import 'package:expense_tracker/models/ledger.dart';
 import 'package:expense_tracker/services/ledger_store.dart';
 import 'package:expense_tracker/widgets/editors.dart';
-import 'package:expense_tracker/widgets/quick_transaction_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -76,34 +75,4 @@ void main() {
       expect(store.amount, 2500);
     },
   );
-  testWidgets('quick transaction saves to the selected account', (
-    tester,
-  ) async {
-    final store = QuickRecordingStore();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: QuickTransactionCard(
-              store: store,
-              accounts: accounts,
-              userId: 'test-user',
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Current'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Savings').last);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, '9.60');
-    await tester.ensureVisible(find.text('Save transaction'));
-    await tester.tap(find.text('Save transaction'));
-    await tester.pumpAndSettle();
-    expect(store.account, 'savings');
-    expect(store.amount, 960);
-    expect(find.text('Transaction saved to Savings.'), findsOneWidget);
-  });
 }

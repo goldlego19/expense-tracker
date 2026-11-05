@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/access_policy.dart';
+import 'services/home_widget_bridge.dart';
 import 'screens/authorized_session.dart';
 import 'theme/app_theme.dart';
 import 'widgets/motion.dart';
@@ -21,6 +22,7 @@ Future<void> main() async {
   } catch (error) {
     startupError = error;
   }
+  await HomeWidgetBridge.initialize();
   final appearance = ThemeController();
   await appearance.load();
   runApp(ExpenseApp(startupError: startupError, appearance: appearance));
@@ -51,10 +53,10 @@ class _ExpenseAppState extends State<ExpenseApp> {
       builder: (context, _) => MaterialApp(
         title: 'Pocket Ledger',
         debugShowCheckedModeBanner: false,
-        theme: ledgerTheme(Brightness.light, accent: _appearance.accent.color),
+        theme: ledgerTheme(Brightness.light, accent: _appearance.accentColor),
         darkTheme: ledgerTheme(
           Brightness.dark,
-          accent: _appearance.accent.color,
+          accent: _appearance.accentColor,
         ),
         themeMode: _appearance.mode,
         builder: (context, child) =>

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/appearance_values.dart';
+import '../services/home_widget_bridge.dart';
+
 enum LedgerAccent {
   blue(Color(0xff3b82f6)),
   green(Color(0xff10b981)),
@@ -20,8 +23,26 @@ class ThemeController extends ChangeNotifier {
   ThemeMode get mode => _mode;
   LedgerAccent _accent = LedgerAccent.blue;
   LedgerAccent get accent => _accent;
+  Color? _customAccent;
+  Color? get customAccent => _customAccent;
+  Color get accentColor => _customAccent ?? _accent.color;
+  Future<void> syncWidgetAppearance() => HomeWidgetBridge.syncAppearance(
+    accent: accentColor.toARGB32(),
+    dark:
+        _mode == ThemeMode.dark ||
+        (_mode == ThemeMode.system &&
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+                Brightness.dark),
+  );
   Future<void> load() async {
     try {
+      final savedCustom = await SharedPreferencesAsync().getString(
+        'ledgerCustomAccent',
+      );
+      final customValue = savedCustom == null
+          ? null
+          : parseAccentHex(savedCustom);
+      if (customValue != null) _customAccent = Color(customValue);
       final savedAccent = await SharedPreferencesAsync().getString(
         'ledgerAccent',
       );
@@ -37,13 +58,35 @@ class ThemeController extends ChangeNotifier {
     } catch (_) {
       /* The app can still start if device storage is unavailable. */
     }
+    await syncWidgetAppearance();
   }
 
   Future<bool> setAccent(LedgerAccent accent) async {
     _accent = accent;
+    _customAccent = null;
     notifyListeners();
+    await syncWidgetAppearance();
     try {
+      await SharedPreferencesAsync().remove('ledgerCustomAccent');
       await SharedPreferencesAsync().setString('ledgerAccent', accent.name);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> setCustomAccent(String value) async {
+    final parsed = parseAccentHex(value);
+    if (parsed == null)
+      throw const FormatException('Enter a colour such as #7C3AED.');
+    _customAccent = Color(parsed);
+    notifyListeners();
+    await syncWidgetAppearance();
+    try {
+      await SharedPreferencesAsync().setString(
+        'ledgerCustomAccent',
+        accentHex(parsed),
+      );
       return true;
     } catch (_) {
       return false;
@@ -53,6 +96,7 @@ class ThemeController extends ChangeNotifier {
   Future<bool> setMode(ThemeMode mode) async {
     _mode = mode;
     notifyListeners();
+    await syncWidgetAppearance();
     try {
       await SharedPreferencesAsync().setString('appearance', mode.name);
       return true;
@@ -80,7 +124,10 @@ ThemeData ledgerTheme(
   final scheme = ColorScheme.fromSeed(seedColor: accent, brightness: brightness)
       .copyWith(
         primary: dark
-            ? Color.lerp(accent, Colors.white, .32)!
+            ? ColorScheme.fromSeed(
+                seedColor: accent,
+                brightness: Brightness.dark,
+              ).primary
             : ColorScheme.fromSeed(seedColor: accent).primary,
         onPrimary: dark ? const Color(0xff071121) : Colors.white,
         surface: dark ? const Color(0xff121a2c) : Colors.white,
@@ -165,67 +212,223 @@ class AppearanceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = ThemeScope.maybeOf(context);
     if (controller == null) return const SizedBox.shrink();
-    return PopupMenuButton<String>(
+    return IconButton(
       tooltip: 'Appearance',
-      initialValue: 'theme:${controller.mode.name}',
-      icon: Icon(
-        controller.mode == ThemeMode.system
-            ? Icons.brightness_auto_outlined
-            : controller.mode == ThemeMode.dark
-            ? Icons.dark_mode_outlined
-            : Icons.light_mode_outlined,
+      icon: const Icon(Icons.palette_outlined),
+      onPressed: () => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => AppearanceEditor(controller: controller),
       ),
-      onSelected: (value) async {
-        final saved = value.startsWith('accent:')
-            ? await controller.setAccent(
-                LedgerAccent.values.byName(value.substring(7)),
-              )
-            : await controller.setMode(
-                ThemeMode.values.byName(value.substring(6)),
-              );
-        if (!saved && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Appearance changed for this session. Could not save the preference.',
-              ),
-            ),
-          );
-        }
-      },
-      itemBuilder: (_) => [
-        for (final mode in ThemeMode.values)
-          CheckedPopupMenuItem<String>(
-            value: 'theme:${mode.name}',
-            checked: controller.mode == mode,
-            child: Text(switch (mode) {
-              ThemeMode.dark => 'Dark',
-              ThemeMode.light => 'Light',
-              ThemeMode.system => 'Use device theme',
-            }),
-          ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
-          enabled: false,
-          child: Text('Accent colour'),
+    );
+  }
+}
+
+class AppearanceEditor extends StatefulWidget {
+  const AppearanceEditor({super.key, required this.controller});
+  final ThemeController controller;
+  @override
+  State<AppearanceEditor> createState() => _AppearanceEditorState();
+}
+
+class _AppearanceEditorState extends State<AppearanceEditor> {
+  late final TextEditingController _hex = TextEditingController(
+    text: accentHex(widget.controller.accentColor.toARGB32()),
+  );
+  String? _error;
+  bool _busy = false;
+  Future<void> _save(Future<bool> Function() save) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final saved = await save();
+      if (mounted)
+        setState(() {
+          _hex.text = accentHex(widget.controller.accentColor.toARGB32());
+          if (!saved)
+            _error =
+                'Applied for this session. Could not save this device preset.';
+        });
+    } catch (_) {
+      if (mounted)
+        setState(() => _error = 'Enter a six-digit colour such as #7C3AED.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _hex.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.controller,
+    builder: (context, _) => SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          8,
+          24,
+          MediaQuery.viewInsetsOf(context).bottom + 24,
         ),
-        for (final accent in LedgerAccent.values)
-          CheckedPopupMenuItem<String>(
-            value: 'accent:${accent.name}',
-            checked: controller.accent == accent,
-            child: Row(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 540),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.circle, color: accent.color, size: 14),
-                const SizedBox(width: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.palette_outlined),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Make it yours',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close appearance',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Your appearance preset is saved on this device only. Other devices keep their own colours and theme.',
+                ),
+                const SizedBox(height: 24),
+                Text('Theme', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  children: [
+                    for (final mode in ThemeMode.values)
+                      ChoiceChip(
+                        label: Text(switch (mode) {
+                          ThemeMode.dark => 'Dark',
+                          ThemeMode.light => 'Light',
+                          ThemeMode.system => 'Device',
+                        }),
+                        selected: widget.controller.mode == mode,
+                        onSelected: _busy
+                            ? null
+                            : (_) =>
+                                  _save(() => widget.controller.setMode(mode)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 24),
                 Text(
-                  '${accent.name[0].toUpperCase()}${accent.name.substring(1)}',
+                  'Accent colour',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: [
+                    for (final accent in LedgerAccent.values)
+                      Tooltip(
+                        message: accent.name,
+                        child: Semantics(
+                          label: '${accent.name} accent',
+                          button: true,
+                          selected:
+                              widget.controller.customAccent == null &&
+                              widget.controller.accent == accent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(30),
+                            onTap: _busy
+                                ? null
+                                : () => _save(
+                                    () => widget.controller.setAccent(accent),
+                                  ),
+                            child: Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: accent.color,
+                                border: Border.all(
+                                  color:
+                                      widget.controller.customAccent == null &&
+                                          widget.controller.accent == accent
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Colors.transparent,
+                                  width: 3,
+                                ),
+                              ),
+                              child:
+                                  widget.controller.customAccent == null &&
+                                      widget.controller.accent == accent
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 22,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                TextField(
+                  controller: _hex,
+                  enabled: !_busy,
+                  maxLength: 7,
+                  decoration: InputDecoration(
+                    labelText: 'Custom colour',
+                    hintText: '#7C3AED',
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: CircleAvatar(
+                        radius: 10,
+                        backgroundColor: widget.controller.accentColor,
+                      ),
+                    ),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () => _save(
+                          () => widget.controller.setCustomAccent(_hex.text),
+                        ),
+                  icon: const Icon(Icons.color_lens_outlined),
+                  label: const Text('Apply custom colour'),
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                const Text(
+                  'The Android home-screen widget follows this device preset too.',
                 ),
               ],
             ),
           ),
-      ],
-    );
-  }
+        ),
+      ),
+    ),
+  );
 }
 
 Color incomeColor(BuildContext context) =>

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/access_policy.dart';
+import '../services/home_widget_bridge.dart';
 import 'home_screen.dart';
 
 /// Never construct the ledger or its recurring runner until access is verified.
@@ -14,14 +15,20 @@ class AuthorizedSession extends StatefulWidget {
 }
 
 class _AuthorizedSessionState extends State<AuthorizedSession> {
-  late Future<bool> _allowed = AuthService.isAllowedSession(widget.user);
+  late Future<bool> _allowed = _verify();
+  Future<bool> _verify() async {
+    final allowed = await AuthService.isAllowedSession(widget.user);
+    if (!allowed) await HomeWidgetBridge.clearAccounts();
+    return allowed;
+  }
+
   bool _signingOut = false;
   String? _error;
   @override
   void didUpdateWidget(covariant AuthorizedSession oldWidget) {
     super.didUpdateWidget(oldWidget);
     // idTokenChanges emits after refresh as well as sign-in/session restoration.
-    _allowed = AuthService.isAllowedSession(widget.user);
+    _allowed = _verify();
   }
 
   Future<void> _signOut() async {

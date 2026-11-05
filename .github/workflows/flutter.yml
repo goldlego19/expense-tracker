@@ -18,3 +18,4 @@ jobs:
       - run: flutter test
       - run: flutter test --platform chrome test/ledger_test.dart test/recurring_calendar_test.dart
       - run: flutter build web --release
+      - run: flutter build apk --debug

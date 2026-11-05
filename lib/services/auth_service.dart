@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'access_policy.dart';
+import 'home_widget_bridge.dart';
 
 class AccessDeniedException implements Exception {
   const AccessDeniedException();
@@ -60,7 +61,11 @@ class AuthService {
       if (!kIsWeb && _initialization != null)
         await GoogleSignIn.instance.signOut();
     } finally {
-      await FirebaseAuth.instance.signOut();
+      try {
+        await FirebaseAuth.instance.signOut();
+      } finally {
+        await HomeWidgetBridge.clearAccounts();
+      }
     }
   }
 }

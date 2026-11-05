@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -5,8 +8,8 @@ import '../models/ledger.dart';
 import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
 import '../services/client_recurring_scheduler.dart';
+import '../services/home_widget_bridge.dart';
 import '../widgets/editors.dart';
-import '../widgets/quick_transaction_card.dart';
 import '../widgets/glass_panel.dart';
 import '../widgets/account_order_editor.dart';
 import '../theme/app_theme.dart';
@@ -30,12 +33,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _scheduler.start();
+    HomeWidgetBridge.authorize(widget.user.uid);
+    HomeWidgetBridge.pendingLaunch.addListener(_queueWidgetLaunch);
+    _widgetAccountsSubscription = _accounts.listen((accounts) {
+      _widgetAccounts = accounts;
+      _widgetAccountsLoaded = true;
+      unawaited(_syncNativeWidget());
+      _queueWidgetLaunch();
+    }, onError: (Object _) {});
+    _widgetEntriesSubscription = _entries.listen((entries) {
+      _widgetEntries = entries;
+      _widgetEntriesLoaded = true;
+      unawaited(_syncNativeWidget());
+    }, onError: (Object _) {});
+    unawaited(HomeWidgetBridge.initialize());
+    _queueWidgetLaunch();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _scheduler.resume();
+      unawaited(HomeWidgetBridge.consumeLaunch());
+      _widgetSignature = null;
+      unawaited(_syncNativeWidget());
     } else {
       _scheduler.pause();
     }
@@ -45,7 +66,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _scheduler.dispose();
+    HomeWidgetBridge.pendingLaunch.removeListener(_queueWidgetLaunch);
+    unawaited(_widgetAccountsSubscription?.cancel());
+    unawaited(_widgetEntriesSubscription?.cancel());
     super.dispose();
+  }
+
+  StreamSubscription<List<BankAccount>>? _widgetAccountsSubscription;
+  StreamSubscription<List<LedgerEntry>>? _widgetEntriesSubscription;
+  List<BankAccount> _widgetAccounts = [];
+  List<LedgerEntry> _widgetEntries = [];
+  bool _widgetAccountsLoaded = false,
+      _widgetEntriesLoaded = false,
+      _openingWidgetEditor = false;
+  String? _widgetSignature;
+  Future<void> _syncNativeWidget() async {
+    if (!HomeWidgetBridge.supported ||
+        !_widgetAccountsLoaded ||
+        !_widgetEntriesLoaded)
+      return;
+    final signature = jsonEncode(
+      _widgetAccounts
+          .where((a) => !a.archived)
+          .map((a) => [a.id, a.name, a.type, accountBalance(a, _widgetEntries)])
+          .toList(),
+    );
+    if (signature == _widgetSignature) return;
+    _widgetSignature = signature;
+    try {
+      await HomeWidgetBridge.syncAccounts(
+        widget.user.uid,
+        _widgetAccounts,
+        _widgetEntries,
+      );
+    } catch (_) {
+      _widgetSignature = null;
+    }
+  }
+
+  void _queueWidgetLaunch() {
+    if (!mounted ||
+        !_widgetAccountsLoaded ||
+        _openingWidgetEditor ||
+        HomeWidgetBridge.pendingLaunch.value == null)
+      return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openWidgetLaunch());
+  }
+
+  Future<void> _openWidgetLaunch() async {
+    if (!mounted || _openingWidgetEditor) return;
+    final launch = HomeWidgetBridge.pendingLaunch.value;
+    if (launch == null) return;
+    _openingWidgetEditor = true;
+    HomeWidgetBridge.complete(launch);
+    final active = _widgetAccounts.where((a) => !a.archived).toList();
+    if (!active.any((a) => a.id == launch.accountId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'That widget account is unavailable or archived. Choose another account on the home screen.',
+          ),
+        ),
+      );
+    } else {
+      await editEntry(
+        context,
+        _store,
+        active,
+        null,
+        launch.kind,
+        launch.accountId,
+      );
+    }
+    _openingWidgetEditor = false;
+    if (mounted) _queueWidgetLaunch();
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    final appearance = ThemeScope.maybeOf(context);
+    if (appearance != null) unawaited(appearance.syncWidgetAppearance());
   }
 
   late final LedgerStore _store = LedgerStore(widget.user.uid);
@@ -473,12 +573,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-    final quickPanel = QuickTransactionCard(
-      key: ValueKey(widget.user.uid),
-      store: _store,
-      accounts: accounts,
-      userId: widget.user.uid,
-    );
     return [
       Container(
         alignment: Alignment.centerLeft,
@@ -575,8 +669,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                quickPanel,
-                const SizedBox(height: 20),
                 accountsPanel,
                 const SizedBox(height: 20),
                 spendingPanel,
@@ -591,11 +683,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 flex: 5,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    quickPanel,
-                    const SizedBox(height: 20),
-                    spendingPanel,
-                  ],
+                  children: [spendingPanel],
                 ),
               ),
               const SizedBox(width: 20),
@@ -921,10 +1009,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           (a) => _accountCard(a, entries, accounts: accounts, editable: true),
         ),
     const SizedBox(height: 24),
+    if (HomeWidgetBridge.supported)
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.widgets_outlined),
+          title: const Text('Android home-screen widget'),
+          subtitle: const Text(
+            'Swipe between account balances and add transactions',
+          ),
+          onTap: _showWidgetHelp,
+        ),
+      ),
     const Text(
       'Opening balances are your starting point. To update a balance later, record the missing income or expense, or edit the opening balance. Archived accounts retain their history and remain in net worth.',
     ),
   ];
+  Future<void> _showWidgetHelp() async {
+    await _syncNativeWidget();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add your home-screen widget'),
+        content: const Text(
+          '1. Open this Android app and let accounts sync.\n2. Long-press an empty area on your phone home screen.\n3. Tap Widgets → Pocket Ledger → Quick transaction.\n4. Drag it onto the home screen and choose the first account.\n\nSwipe up/down to cycle through active accounts, or use the arrows. Each card shows its type icon, name and last-synced balance. Expense and Income open the editor for that card.\n\nColours and dark/light mode follow this device preset. Balances refresh as this app syncs; they do not fetch updates while the app is closed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _accountCard(
     BankAccount a,
     List<LedgerEntry> entries, {

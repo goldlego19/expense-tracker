@@ -1,7 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'gremblinu@gmail.com'
+        && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
     function validAccount(d) {
       return d.keys().hasAll(['name', 'type', 'openingCents', 'currency', 'archived'])
         && d.keys().hasOnly(['name', 'type', 'openingCents', 'currency', 'archived', 'sortOrder'])

@@ -3,8 +3,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
+import 'services/access_policy.dart';
+import 'screens/authorized_session.dart';
 import 'theme/app_theme.dart';
 import 'widgets/motion.dart';
 
@@ -15,6 +16,7 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    await AuthService.configurePersistence();
   } catch (error) {
     startupError = error;
   }
@@ -64,7 +66,7 @@ class _ExpenseAppState extends State<ExpenseApp> {
                 ),
               )
             : StreamBuilder<User?>(
-                stream: FirebaseAuth.instance.authStateChanges(),
+                stream: FirebaseAuth.instance.idTokenChanges(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError)
                     return const Scaffold(
@@ -80,7 +82,7 @@ class _ExpenseAppState extends State<ExpenseApp> {
                     );
                   return snapshot.data == null
                       ? const LoginScreen()
-                      : HomeScreen(
+                      : AuthorizedSession(
                           key: ValueKey(snapshot.data!.uid),
                           user: snapshot.data!,
                         );
@@ -99,7 +101,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
-  String? _error;
+  String? _error = AuthService.lastSignInError;
   Future<void> _login() async {
     setState(() {
       _busy = true;
@@ -146,7 +148,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   'Keep your current, savings, joint and loan accounts together. Record spending and see where you stand.',
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
+                const Text(
+                  'Private access · $allowedGoogleEmail',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'You stay signed in on this device until you sign out.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
                 FilledButton.icon(
                   onPressed: _busy ? null : _login,
                   icon: _busy

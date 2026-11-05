@@ -16,6 +16,7 @@ Future<void> editEntry(
   List<BankAccount> accounts, [
   LedgerEntry? entry,
   String initialKind = 'expense',
+  String? initialAccountId,
 ]) => showLedgerEditor(
   context,
   EntryEditor(
@@ -23,6 +24,7 @@ Future<void> editEntry(
     accounts: accounts,
     entry: entry,
     initialKind: initialKind,
+    initialAccountId: initialAccountId,
   ),
 );
 
@@ -195,11 +197,13 @@ class EntryEditor extends StatefulWidget {
     required this.accounts,
     this.entry,
     this.initialKind = 'expense',
+    this.initialAccountId,
   });
   final LedgerStore store;
   final List<BankAccount> accounts;
   final LedgerEntry? entry;
   final String initialKind;
+  final String? initialAccountId;
   @override
   State<EntryEditor> createState() => _EntryEditorState();
 }
@@ -224,7 +228,11 @@ class _EntryEditorState extends State<EntryEditor> {
     );
     _note = TextEditingController(text: e?.note ?? '');
     _kind = e?.kind ?? widget.initialKind;
-    _accountId = e?.accountId ?? widget.accounts.first.id;
+    _accountId =
+        e?.accountId ??
+        (widget.accounts.any((account) => account.id == widget.initialAccountId)
+            ? widget.initialAccountId!
+            : widget.accounts.first.id);
     _targetId = e?.targetId;
     _category = e?.category ?? categories.first;
     _date = e?.date ?? DateTime.now();

@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
 import '../services/client_recurring_scheduler.dart';
 import '../widgets/editors.dart';
+import '../widgets/quick_transaction_card.dart';
 import '../widgets/account_order_editor.dart';
 import '../theme/app_theme.dart';
 import '../widgets/motion.dart';
@@ -392,6 +393,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       const SizedBox(height: 20),
       _quickActions(accounts),
       const SizedBox(height: 16),
+      QuickTransactionCard(
+        key: ValueKey(widget.user.uid),
+        store: _store,
+        accounts: accounts,
+        userId: widget.user.uid,
+      ),
+      const SizedBox(height: 16),
       _monthPicker(),
       const SizedBox(height: 12),
       Wrap(
@@ -418,7 +426,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ...accounts
           .where((a) => !a.archived)
-          .map((a) => _accountCard(a, entries)),
+          .map((a) => _accountCard(a, entries, accounts: accounts)),
       const SizedBox(height: 24),
       Text(
         'Spending by category',
@@ -751,7 +759,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     ...accounts
         .where((a) => !a.archived || _showArchived)
-        .map((a) => _accountCard(a, entries, editable: true)),
+        .map(
+          (a) => _accountCard(a, entries, accounts: accounts, editable: true),
+        ),
     const SizedBox(height: 24),
     const Text(
       'Opening balances are your starting point. To update a balance later, record the missing income or expense, or edit the opening balance. Archived accounts retain their history and remain in net worth.',
@@ -760,6 +770,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _accountCard(
     BankAccount a,
     List<LedgerEntry> entries, {
+    required List<BankAccount> accounts,
     bool editable = false,
   }) => Card(
     child: ListTile(
@@ -772,7 +783,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ? Icons.people_outline
             : Icons.account_balance_outlined,
       ),
-      title: Text(a.name),
+      title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text('${a.type}${a.archived ? ' · Archived' : ''}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -781,6 +792,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             money(accountBalance(a, entries)),
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
+          if (!a.archived)
+            IconButton(
+              tooltip: 'Add transaction to ${a.name}',
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: () => editEntry(
+                context,
+                _store,
+                accounts.where((account) => !account.archived).toList(),
+                null,
+                'expense',
+                a.id,
+              ),
+            ),
           if (editable)
             PopupMenuButton<String>(
               tooltip: 'Account actions',

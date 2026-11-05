@@ -19,6 +19,24 @@ A Flutter expense tracker for Android and Web using Firebase Authentication (Goo
 
 Joint is a label, not shared access. There is no live bank connection. All accounts belong to the signed-in user. Loans start with a positive debt entered in the form and are stored as negative balances. Record a repayment as a transfer from your paying account to your loan. If interest is charged, record that as an expense on the loan.
 
+## Private access and remembered login
+
+Only the verified Google identity `gremblinu@gmail.com` can enter. The app checks the restored Firebase session before creating any ledger screen or recurring runner; a mismatched Google account is signed out during login. Firestore rules independently require this email, verified status, Google sign-in provider and matching UID. Deploy the updated rules to enforce the restriction on the database. Existing data stays under its original UID.
+
+Web login uses Firebase LOCAL persistence; Android uses Firebase's native persisted session. Passwords are never stored by this app. Google is only opened when there is no valid saved session. You may need to sign in again after signing out, clearing site data, using a new browser profile, or session revocation. Use a consistent browser profile/address when testing.
+
+For a persistent browser development session, run:
+
+```powershell
+flutter run -d web-server --web-port 7357
+```
+
+Then open `http://localhost:7357` in your normal browser. Keep using that address/profile. Fresh debug/private browser profiles do not share saved sign-in storage.
+
+The Overview **Quick transaction** widget remembers your selected account on the device. Enter an amount and optional name, choose expense/income, and save directly. Quick entries use category Other and today's date; the full editor supports other categories/dates and transfers. Each active account also has a plus button that opens the full transaction editor with that account selected.
+
+This restricts app and database access. Firebase may still briefly authenticate a different Google identity before the app rejects it; preventing creation of such Firebase Auth user records requires a different provider-side setup. No blocking Cloud Function or Blaze dependency is introduced.
+
 ## Local setup (PowerShell)
 
 Install Flutter compatible with the Dart constraint in `pubspec.yaml`, Android Studio for Android, Node.js, and the Firebase CLI. The existing Firebase configuration points to `expense-tracker-ed1c1`.

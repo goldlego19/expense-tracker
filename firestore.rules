@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function validAccount(d) {
+      return d.keys().hasAll(['name', 'type', 'openingCents', 'currency', 'archived'])
+        && d.keys().hasOnly(['name', 'type', 'openingCents', 'currency', 'archived'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.type in ['Current', 'Savings', 'Joint', 'Loan']
+        && d.openingCents is int && d.openingCents >= -99999999999 && d.openingCents <= 99999999999
+        && (d.type != 'Loan' || d.openingCents <= 0)
+        && d.currency == 'EUR' && d.archived is bool;
+    }
+    function activeAccount(uid, id) {
+      return id is string && exists(/databases/$(database)/documents/users/$(uid)/accounts/$(id))
+        && get(/databases/$(database)/documents/users/$(uid)/accounts/$(id)).data.archived == false;
+    }
+    function validEntry(uid, d) {
+      return d.keys().hasAll(['kind', 'accountId', 'targetId', 'amountCents', 'category', 'note', 'date'])
+        && d.keys().hasOnly(['kind', 'accountId', 'targetId', 'amountCents', 'category', 'note', 'date'])
+        && d.kind in ['income', 'expense', 'transfer']
+        && d.amountCents is int && d.amountCents > 0 && d.amountCents <= 99999999999
+        && d.note is string && d.note.size() <= 200
+        && d.category in ['Food & groceries', 'Home', 'Transport', 'Shopping', 'Health', 'Entertainment', 'Bills', 'Salary', 'Other']
+        && d.date is timestamp && d.date >= timestamp.date(2000, 1, 1) && d.date <= request.time
+        && activeAccount(uid, d.accountId)
+        && ((d.kind != 'transfer' && d.targetId == null)
+          || (d.kind == 'transfer' && d.targetId != d.accountId && activeAccount(uid, d.targetId)));
+    }
+    match /users/{uid}/accounts/{id} {
+      allow read: if owner(uid);
+      allow create, update: if owner(uid) && validAccount(request.resource.data);
+      // Archive accounts so transaction references remain intact.
+      allow delete: if false;
+    }
+    match /users/{uid}/transactions/{id} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && validEntry(uid, request.resource.data);
+      allow update: if owner(uid) && validEntry(uid, request.resource.data)
+        && activeAccount(uid, resource.data.accountId)
+        && (resource.data.kind != 'transfer' || activeAccount(uid, resource.data.targetId));
+    }
+  }
+}

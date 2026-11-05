@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/ledger.dart';
+import '../models/recurring_rule.dart';
 
 class LedgerStore {
   LedgerStore(String uid)
@@ -60,6 +61,58 @@ class LedgerStore {
       'date': Timestamp.fromDate(date),
     });
   }
+
+  CollectionReference<Map<String, dynamic>> get _rules =>
+      _user.collection('recurringRules');
+  Stream<List<RecurringRule>> watchRecurringRules() => _rules.snapshots().map(
+    (snapshot) =>
+        snapshot.docs.map(RecurringRule.fromDoc).toList()
+          ..sort((a, b) => a.name.compareTo(b.name)),
+  );
+  Future<void> saveRecurringRule({
+    String? id,
+    required String name,
+    required String accountId,
+    required String kind,
+    required int amountCents,
+    required String category,
+    required String frequency,
+    required int dayOfMonth,
+    required int weekday,
+    required int month,
+    required String startDate,
+    required String endDate,
+  }) async {
+    await (id == null ? _rules.doc() : _rules.doc(id)).set({
+      'name': name.trim(),
+      'accountId': accountId,
+      'kind': kind,
+      'amountCents': amountCents,
+      'category': category,
+      'frequency': frequency,
+      'dayOfMonth': dayOfMonth,
+      'weekday': weekday,
+      'month': month,
+      'startDate': startDate,
+      'endDate': endDate,
+      'timeZone': 'Europe/Malta',
+      'effectiveFrom': FieldValue.serverTimestamp(),
+      if (id == null) ...{
+        'enabled': true,
+        'createdAt': FieldValue.serverTimestamp(),
+        'processedThrough': null,
+        'lastRunAt': null,
+        'lastError': null,
+      },
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> setRecurringEnabled(RecurringRule rule, bool enabled) =>
+      _rules.doc(rule.id).update({
+        'enabled': enabled,
+        if (enabled) 'effectiveFrom': FieldValue.serverTimestamp(),
+      });
+  Future<void> deleteRecurringRule(String id) => _rules.doc(id).delete();
 
   Future<void> deleteEntry(String id) => _entries.doc(id).delete();
 }

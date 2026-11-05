@@ -7,6 +7,8 @@ import '../services/ledger_store.dart';
 import '../widgets/editors.dart';
 import '../theme/app_theme.dart';
 import '../widgets/motion.dart';
+import '../widgets/recurring_editor.dart';
+import '../widgets/recurring_section.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.user});
@@ -54,6 +56,20 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ) ??
       false;
+
+  void _openRule(List<BankAccount> accounts) {
+    final active = accounts.where((account) => !account.archived).toList();
+    if (active.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add an account first to set up recurring payments.'),
+        ),
+      );
+      editAccount(context, _store);
+      return;
+    }
+    editRecurringRule(context, _store, active);
+  }
 
   void _openEntry(List<BankAccount> accounts, [String kind = 'expense']) {
     final active = accounts.where((a) => !a.archived).toList();
@@ -133,6 +149,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (_tab == 0) ..._overview(accounts, entries),
                         if (_tab == 1) ..._transactions(accounts, entries),
                         if (_tab == 2) ..._accountSettings(accounts, entries),
+                        if (_tab == 3)
+                          RecurringSection(store: _store, accounts: accounts),
                       ],
                     ),
                   ),
@@ -191,6 +209,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       selectedIcon: Icon(Icons.account_balance_rounded),
                       label: Text('Accounts'),
                     ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.autorenew_rounded),
+                      label: Text('Recurring'),
+                    ),
                   ],
                 ),
               Expanded(child: page),
@@ -201,9 +223,17 @@ class _HomeScreenState extends State<HomeScreen> {
               : FloatingActionButton.extended(
                   onPressed: () => _tab == 2
                       ? editAccount(context, _store)
+                      : _tab == 3
+                      ? _openRule(accounts)
                       : _openEntry(accounts),
                   icon: const Icon(Icons.add_rounded),
-                  label: Text(_tab == 2 ? 'Add account' : 'Add transaction'),
+                  label: Text(
+                    _tab == 2
+                        ? 'Add account'
+                        : _tab == 3
+                        ? 'Add rule'
+                        : 'Add transaction',
+                  ),
                 ),
           bottomNavigationBar: wide
               ? null
@@ -225,6 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icon(Icons.account_balance_outlined),
                       selectedIcon: Icon(Icons.account_balance_rounded),
                       label: 'Accounts',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.autorenew_rounded),
+                      label: 'Recurring',
                     ),
                   ],
                 ),
@@ -306,7 +340,11 @@ class _HomeScreenState extends State<HomeScreen> {
           if (constraints.maxWidth < 680) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [withLoansCard, const SizedBox(height: 16), withoutLoansCard],
+              children: [
+                withLoansCard,
+                const SizedBox(height: 16),
+                withoutLoansCard,
+              ],
             );
           }
           return Row(
@@ -398,7 +436,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
-
   Widget _balanceCard({
     required String title,
     required int cents,
@@ -412,35 +449,52 @@ class _HomeScreenState extends State<HomeScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: const Color(0xff7ce3c4).withValues(alpha: .25)),
+        border: Border.all(
+          color: const Color(0xff7ce3c4).withValues(alpha: .25),
+        ),
       ),
       padding: const EdgeInsets.all(28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Expanded(child: Text(title, style: const TextStyle(
-              color: Color(0xffb4d7d0), fontWeight: FontWeight.w600,
-              letterSpacing: 1.2, fontSize: 12,
-            ))),
-            const SizedBox(width: 8),
-            const Icon(Icons.insights_rounded, color: Color(0xff7ce3c4)),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xffb4d7d0),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.insights_rounded, color: Color(0xff7ce3c4)),
+            ],
+          ),
           const SizedBox(height: 18),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: AnimatedMoney(cents: cents, style: const TextStyle(
-              color: Colors.white, fontSize: 42,
-              fontWeight: FontWeight.w700, letterSpacing: -1.5,
-            )),
+            child: AnimatedMoney(
+              cents: cents,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 42,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -1.5,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           Text(subtitle, style: const TextStyle(color: Color(0xffb4d7d0))),
           const SizedBox(height: 8),
-          const Text('Archived balances included', style: TextStyle(
-            color: Color(0xffb4d7d0), fontSize: 11,
-          )),
+          const Text(
+            'Archived balances included',
+            style: TextStyle(color: Color(0xffb4d7d0), fontSize: 11),
+          ),
         ],
       ),
     ),

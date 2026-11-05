@@ -27,6 +27,39 @@ service cloud.firestore {
         && ((d.kind != 'transfer' && d.targetId == null)
           || (d.kind == 'transfer' && d.targetId != d.accountId && activeAccount(uid, d.targetId)));
     }
+    function validRecurring(uid, d) {
+      return d.keys().hasAll(['name', 'accountId', 'kind', 'amountCents', 'category', 'frequency', 'dayOfMonth', 'weekday', 'month', 'startDate', 'endDate', 'timeZone', 'enabled', 'createdAt', 'effectiveFrom', 'processedThrough', 'lastRunAt', 'lastError'])
+        && d.keys().hasOnly(['name', 'accountId', 'kind', 'amountCents', 'category', 'frequency', 'dayOfMonth', 'weekday', 'month', 'startDate', 'endDate', 'timeZone', 'enabled', 'createdAt', 'effectiveFrom', 'processedThrough', 'lastRunAt', 'lastError'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.accountId is string && d.accountId.matches('[^/]+')
+        && d.kind in ['expense', 'income']
+        && d.amountCents is int && d.amountCents > 0 && d.amountCents <= 99999999999
+        && d.category in ['Food & groceries', 'Home', 'Transport', 'Shopping', 'Health', 'Entertainment', 'Bills', 'Salary', 'Other']
+        && d.frequency in ['daily', 'weekly', 'monthly', 'yearly']
+        && d.dayOfMonth is int && d.dayOfMonth >= 1 && d.dayOfMonth <= 31
+        && d.weekday is int && d.weekday >= 1 && d.weekday <= 7
+        && d.month is int && d.month >= 1 && d.month <= 12
+        && d.startDate is string && d.endDate is string
+        && d.startDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') && d.endDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && d.startDate >= '2000-01-01' && d.endDate <= '2100-12-31' && d.endDate >= d.startDate
+        && d.timeZone == 'Europe/Malta' && d.enabled is bool
+        && d.createdAt is timestamp && d.effectiveFrom is timestamp
+        && (!d.enabled || activeAccount(uid, d.accountId));
+    }
+    match /users/{uid}/recurringRules/{id} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && validRecurring(uid, request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.effectiveFrom == request.time
+        && request.resource.data.processedThrough == null && request.resource.data.lastRunAt == null && request.resource.data.lastError == null;
+      allow update: if owner(uid) && validRecurring(uid, request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'accountId', 'kind', 'amountCents', 'category', 'frequency', 'dayOfMonth', 'weekday', 'month', 'startDate', 'endDate', 'enabled', 'effectiveFrom'])
+        && (request.resource.data.effectiveFrom == request.time || (request.resource.data.enabled == false && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabled']))) ;
+      match /occurrences/{date} {
+        allow read: if owner(uid);
+        allow write: if false;
+      }
+    }
     match /users/{uid}/accounts/{id} {
       allow read: if owner(uid);
       allow create, update: if owner(uid) && validAccount(request.resource.data);

@@ -91,3 +91,40 @@ users/{uid}/transactions/{transactionId}
 Account balances = opening amount + income − expenses − outgoing transfers + incoming transfers. Archived account balances remain in net worth and history; restore an account before adding or editing its transactions. Transactions may be deleted independently. Opening amounts should describe the starting point before recorded transactions, avoiding double counting.
 
 This first version loads the user's ledger to calculate balances and sorts/filters locally. A larger ledger should use paginated history and server-maintained aggregates before broad public use. Dates use the recording device's timezone.
+
+## Recurring transactions
+
+Open **Recurring → Add rule**. Set the name, EUR amount, account, expense/income type, category, frequency, start/end dates, and the payment day. Frequencies: daily; weekly with weekday; monthly with day 1–31; yearly with month/day. The end date is inclusive. Days 29–31 clamp to the last day in shorter months. Schedules use `Europe/Malta`, including daylight saving time.
+
+For example: amount `96.00`, expense, your chosen current account, Monthly, payment day `15`, your desired start date, end date `31 October 2028`. This includes the payment on 15 October 2028 if within the start range.
+
+Rules can be edited, paused, resumed or deleted. Editing or resuming applies from the Malta calendar date of the save; earlier dates are skipped. The scheduler never backfills dates before rule creation. Pausing/deleting preserves posted transactions. Archived or unavailable accounts skip due payments; skipped dates are not backfilled when restored. These rules record tracker transactions only; they do not instruct a bank or move real money.
+
+### Deploy the server scheduler
+
+Automatic posting while the app is closed requires Firebase **Blaze billing**, Cloud Functions and Cloud Scheduler. No deployment or billing changes are made by this repository. A saved rule alone does not activate the scheduler.
+
+Install Node.js 22, sign in with an account that can deploy to your Firebase project, and run from the project root:
+
+```powershell
+npm --prefix functions ci
+firebase deploy --only firestore --project expense-tracker-ed1c1
+firebase deploy --only functions:postRecurringTransactions --project expense-tracker-ed1c1
+```
+
+Wait for the Firestore collection-group index to finish building. The function runs hourly at minute 15, in `europe-west1`, using Malta calendar dates. A due payment normally appears at about 00:15 Malta time; after an outage it catches up on the next successful run. It processes up to 40 overdue occurrences per rule per run and continues in later runs. You can manually run the created Cloud Scheduler job for an immediate check. Do not expose the scheduler function as a public endpoint.
+
+The Recurring screen shows whether the backend has checked a rule and any account/configuration error. If rules save but payments never appear, verify that the function is deployed, the Scheduler job is enabled, the index exists and the function logs show successful runs. Ending dates stop posting but do not delete rule history.
+
+### Duplicate prevention and validation
+
+Each due date has a deterministic transaction ID plus a server-only occurrence receipt. The receipt, transaction and progress cursor are written in one Firestore transaction. Retries/overlapping runs cannot post a second payment. Deleting a generated transaction intentionally leaves its receipt, so it will not be recreated. Editing an already-posted transaction does not change future rule settings.
+
+Client rules restrict recurring configurations to the signed-in user. Processing cursors, run status and receipts are writable only by the server. The scheduler validates the configuration again and reads the latest account/rule inside its transaction, protecting concurrent edits, pauses and deletion. Rule deletion retains occurrence receipts as an audit trail; long-term cleanup can be added separately.
+
+```powershell
+npm --prefix functions run check
+npm --prefix functions test
+```
+
+The backend tests cover monthly/weekly/daily/yearly dates, inclusive ranges, month ends, leap years, Malta DST, catch-up limits, retries, duplicate suppression, atomic failures, paused/deleted rules and archived accounts. Processor tests use an in-memory Firestore transaction double; production IAM, indexes and deployed rules still require validation after deployment.

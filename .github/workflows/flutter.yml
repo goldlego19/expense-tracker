@@ -16,4 +16,5 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - run: flutter test --platform chrome test/ledger_test.dart
       - run: flutter build web --release

@@ -259,7 +259,8 @@ class _HomeScreenState extends State<HomeScreen> {
     List<BankAccount> accounts,
     List<LedgerEntry> entries,
   ) {
-    final net = accounts.fold(0, (sum, a) => sum + accountBalance(a, entries));
+    final net = totalBalance(accounts, entries);
+    final withoutLoans = totalBalance(accounts, entries, includeLoans: false);
     final monthly = entries.where(
       (e) => e.date.year == _month.year && e.date.month == _month.month,
     );
@@ -290,61 +291,33 @@ class _HomeScreenState extends State<HomeScreen> {
         style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
       const SizedBox(height: 24),
-      Reveal(
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-              colors: [Color(0xff164d47), Color(0xff142d46)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(
-              color: const Color(0xff7ce3c4).withValues(alpha: .25),
-            ),
-          ),
-          padding: const EdgeInsets.all(28),
-          child: Column(
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final withLoansCard = _balanceCard(
+            title: 'NET WORTH INCLUDING LOANS',
+            cents: net,
+            subtitle: 'EUR · All account balances, including loan debt',
+          );
+          final withoutLoansCard = _balanceCard(
+            title: 'BALANCE EXCLUDING LOANS',
+            cents: withoutLoans,
+            subtitle: 'EUR · Current, savings and joint accounts',
+          );
+          if (constraints.maxWidth < 680) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [withLoansCard, const SizedBox(height: 16), withoutLoansCard],
+            );
+          }
+          return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'TOTAL NET WORTH',
-                      style: TextStyle(
-                        color: Color(0xffb4d7d0),
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.5,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  Icon(Icons.insights_rounded, color: Color(0xff7ce3c4)),
-                ],
-              ),
-              const SizedBox(height: 18),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: AnimatedMoney(
-                  cents: net,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 46,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -1.5,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'EUR · All accounts, including loans and archived balances',
-                style: TextStyle(color: Color(0xffb4d7d0)),
-              ),
+              Expanded(child: withLoansCard),
+              const SizedBox(width: 16),
+              Expanded(child: withoutLoansCard),
             ],
-          ),
-        ),
+          );
+        },
       ),
       const SizedBox(height: 20),
       _quickActions(accounts),
@@ -424,6 +397,54 @@ class _HomeScreenState extends State<HomeScreen> {
       ...entries.take(5).map((e) => _entryTile(e, accounts)),
     ];
   }
+
+
+  Widget _balanceCard({
+    required String title,
+    required int cents,
+    required String subtitle,
+  }) => Reveal(
+    child: Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          colors: [Color(0xff164d47), Color(0xff142d46)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xff7ce3c4).withValues(alpha: .25)),
+      ),
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: Text(title, style: const TextStyle(
+              color: Color(0xffb4d7d0), fontWeight: FontWeight.w600,
+              letterSpacing: 1.2, fontSize: 12,
+            ))),
+            const SizedBox(width: 8),
+            const Icon(Icons.insights_rounded, color: Color(0xff7ce3c4)),
+          ]),
+          const SizedBox(height: 18),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: AnimatedMoney(cents: cents, style: const TextStyle(
+              color: Colors.white, fontSize: 42,
+              fontWeight: FontWeight.w700, letterSpacing: -1.5,
+            )),
+          ),
+          const SizedBox(height: 12),
+          Text(subtitle, style: const TextStyle(color: Color(0xffb4d7d0))),
+          const SizedBox(height: 8),
+          const Text('Archived balances included', style: TextStyle(
+            color: Color(0xffb4d7d0), fontSize: 11,
+          )),
+        ],
+      ),
+    ),
+  );
 
   Widget _metric(String label, int cents, Color color) => SizedBox(
     width: 225,

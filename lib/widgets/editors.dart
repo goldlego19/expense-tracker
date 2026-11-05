@@ -77,7 +77,7 @@ class _AccountEditorState extends State<AccountEditor> {
         id: widget.account?.id,
         name: _name.text,
         type: _type,
-        openingCents: _type == 'Loan' ? -cents : cents,
+        openingCents: normalizeCents(_type == 'Loan' ? -cents : cents),
       );
       if (mounted) Navigator.pop(context);
     } catch (error) {

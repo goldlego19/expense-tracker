@@ -31,7 +31,7 @@ class LedgerStore {
     await doc.set({
       'name': name.trim(),
       'type': type,
-      'openingCents': openingCents,
+      'openingCents': normalizeCents(openingCents),
       'currency': 'EUR',
       if (id == null) 'archived': false,
     }, SetOptions(merge: true));

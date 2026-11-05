@@ -22,8 +22,12 @@ int? parseMoney(String input) {
   final cents =
       int.parse(parts[0]) * 100 +
       (parts.length == 2 ? int.parse(parts[1].padRight(2, '0')) : 0);
-  return negative ? -cents : cents;
+  return normalizeCents(negative ? -cents : cents);
 }
+
+/// JavaScript preserves -0; Firestore serializes it as a double, not an int.
+/// Always write a literal positive zero for zero-cent amounts.
+int normalizeCents(int cents) => cents == 0 ? 0 : cents;
 
 String money(int cents) =>
     '${cents < 0 ? '-' : ''}€${(cents.abs() ~/ 100).toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},')}.${(cents.abs() % 100).toString().padLeft(2, '0')}';
@@ -102,3 +106,11 @@ int accountBalance(BankAccount account, Iterable<LedgerEntry> entries) =>
       account.openingCents,
       (sum, entry) => sum + entry.effectOn(account.id),
     );
+
+int totalBalance(
+  Iterable<BankAccount> accounts,
+  Iterable<LedgerEntry> entries, {
+  bool includeLoans = true,
+}) => accounts
+    .where((account) => includeLoans || account.type != 'Loan')
+    .fold(0, (sum, account) => sum + accountBalance(account, entries));

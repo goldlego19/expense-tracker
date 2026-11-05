@@ -4,12 +4,13 @@ service cloud.firestore {
     function owner(uid) { return request.auth != null && request.auth.uid == uid; }
     function validAccount(d) {
       return d.keys().hasAll(['name', 'type', 'openingCents', 'currency', 'archived'])
-        && d.keys().hasOnly(['name', 'type', 'openingCents', 'currency', 'archived'])
+        && d.keys().hasOnly(['name', 'type', 'openingCents', 'currency', 'archived', 'sortOrder'])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.type in ['Current', 'Savings', 'Joint', 'Loan']
         && d.openingCents is int && d.openingCents >= -99999999999 && d.openingCents <= 99999999999
         && (d.type != 'Loan' || d.openingCents <= 0)
-        && d.currency == 'EUR' && d.archived is bool;
+        && d.currency == 'EUR' && d.archived is bool
+        && (!('sortOrder' in d) || (d.sortOrder is int && d.sortOrder >= 0 && d.sortOrder <= 499));
     }
     function activeAccount(uid, id) {
       return id is string && exists(/databases/$(database)/documents/users/$(uid)/accounts/$(id))

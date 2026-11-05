@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/ledger_store.dart';
 import '../services/client_recurring_scheduler.dart';
 import '../widgets/editors.dart';
+import '../widgets/account_order_editor.dart';
 import '../theme/app_theme.dart';
 import '../widgets/motion.dart';
 import '../widgets/recurring_editor.dart';
@@ -719,6 +720,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     const SizedBox(height: 8),
     const Text(
       'Add accounts and manage your opening balances. All amounts use EUR.',
+    ),
+    const SizedBox(height: 12),
+    OutlinedButton.icon(
+      onPressed: accounts.length < 2
+          ? null
+          : () => editAccountOrder(context, accounts, _store.reorderAccounts),
+      icon: const Icon(Icons.swap_vert),
+      label: const Text('Reorder accounts'),
     ),
     const Card(
       child: ListTile(

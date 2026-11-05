@@ -10,6 +10,7 @@ A Flutter expense tracker for Android and Web using Firebase Authentication (Goo
 - Expense, Income and Transfer shortcuts on Overview and Transactions.
 - Animated screen transitions, balance changes, spending bars and editors; device reduced-motion preferences are respected.
 - Named Current, Savings, Joint and Loan accounts, with editable opening balances and archive/restore.
+- Accounts → Reorder accounts: drag handles or up/down arrows, then Save order. The saved order syncs through Firestore and applies to account lists and pickers. Existing accounts use alphabetical order until reordered; new accounts appear after explicitly ordered accounts. Archived accounts keep their position. Deploy the updated Firestore rules to enable ordering.
 - Income, expenses and transfers, with categories, dates, notes, editing and deletion.
 - Overview with net worth, monthly income/expenses/cash flow, category breakdown and recent activity.
 - Transaction filters by month, account and type.

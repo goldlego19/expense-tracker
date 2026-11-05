@@ -43,6 +43,7 @@ class BankAccount {
     required this.type,
     required this.openingCents,
     required this.archived,
+    this.sortOrder,
   });
   factory BankAccount.fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
@@ -52,6 +53,7 @@ class BankAccount {
       type: data['type'] as String,
       openingCents: data['openingCents'] as int,
       archived: data['archived'] as bool,
+      sortOrder: data['sortOrder'] as int?,
     );
   }
   final String id;
@@ -59,6 +61,16 @@ class BankAccount {
   final String type;
   final int openingCents;
   final bool archived;
+  final int? sortOrder;
+}
+
+int compareAccountOrder(BankAccount a, BankAccount b) {
+  if (a.sortOrder != null && b.sortOrder == null) return -1;
+  if (a.sortOrder == null && b.sortOrder != null) return 1;
+  final rank = (a.sortOrder ?? 0).compareTo(b.sortOrder ?? 0);
+  if (rank != 0) return rank;
+  final name = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  return name == 0 ? a.id.compareTo(b.id) : name;
 }
 
 class LedgerEntry {

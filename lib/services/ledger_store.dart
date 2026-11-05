@@ -12,9 +12,7 @@ class LedgerStore {
   CollectionReference<Map<String, dynamic>> get _entries =>
       _user.collection('transactions');
   Stream<List<BankAccount>> watchAccounts() => _accounts.snapshots().map(
-    (s) =>
-        s.docs.map(BankAccount.fromDoc).toList()
-          ..sort((a, b) => a.name.compareTo(b.name)),
+    (s) => s.docs.map(BankAccount.fromDoc).toList()..sort(compareAccountOrder),
   );
   Stream<List<LedgerEntry>> watchEntries() => _entries.snapshots().map(
     (s) =>
@@ -36,6 +34,19 @@ class LedgerStore {
       'currency': 'EUR',
       if (id == null) 'archived': false,
     }, SetOptions(merge: true));
+  }
+
+  Future<void> reorderAccounts(List<String> ids) async {
+    if (ids.length > 500 || ids.toSet().length != ids.length) {
+      throw ArgumentError(
+        'Account order must contain at most 500 unique accounts.',
+      );
+    }
+    final batch = FirebaseFirestore.instance.batch();
+    for (var index = 0; index < ids.length; index++) {
+      batch.update(_accounts.doc(ids[index]), {'sortOrder': index});
+    }
+    await batch.commit();
   }
 
   Future<void> archiveAccount(BankAccount account) =>
